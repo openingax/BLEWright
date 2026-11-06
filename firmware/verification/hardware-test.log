@@ -1,0 +1,18 @@
+{"pass": "framed hello / CRC / boot ID"}
+{"pass": "real BLE scan finds named fixture; stop succeeds"}
+{"pass": "real BLE connection"}
+{"pass": "stale generation and invalid handle rejected before BLE execution"}
+{"pass": "service / characteristic / descriptor discovery with real ATT handles"}
+{"pass": "with-response write and identical readback"}
+{"received": {"type": "event", "event": "notification", "generation": 1, "handle": 27, "indication": false, "value": [5, 6, 7, 8], "bootId": "ffe62830cd893dab", "v": 1}}
+{"pass": "CCCD subscription and real BLE notification"}
+{"pass": "unsubscribe and without-response write/read"}
+{"pass": "MTU exchange and RSSI"}
+{"pass": "disconnect completes with generation change"}
+{"pass": "read after disconnect rejected"}
+{"pass": "duplicate mutating request rejected without replay"}
+{"leaseReceived": {"type": "event", "event": "notification", "generation": 3, "handle": 27, "indication": false, "value": [9, 10], "bootId": "ffe62830cd893dab", "v": 1}}
+{"leaseReceived": {"type": "event", "event": "leaseExpired", "generation": 3, "bootId": "ffe62830cd893dab", "v": 1}}
+{"leaseReceived": {"type": "event", "event": "disconnected", "generation": 4, "reason": 534, "bootId": "ffe62830cd893dab", "v": 1}}
+{"pass": "15-second host lease expires and releases the radio connection"}
+{"result": "PASS", "steps": ["framed hello / CRC / boot ID", "real BLE scan finds named fixture; stop succeeds", "real BLE connection", "stale generation and invalid handle rejected before BLE execution", "service / characteristic / descriptor discovery with real ATT handles", "with-response write and identical readback", "CCCD subscription and real BLE notification", "unsubscribe and without-response write/read", "MTU exchange and RSSI", "disconnect completes with generation change", "read after disconnect rejected", "duplicate mutating request rejected without replay", "15-second host lease expires and releases the radio connection"], "bootId": "ffe62830cd893dab", "generation": 4}

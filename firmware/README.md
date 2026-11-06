@@ -1,11 +1,74 @@
-# ESP32-S3 固件（规划，尚未实现）
+# ESP32-S3 BLE 固件
 
-此目录将存放 ESP-IDF 工程、板级配置和固件构建说明。目标为 BLE Central / GATT Client，不支持经典蓝牙。采用 NimBLE 在 S3 上完成 BLE Host 与控制器操作。
+当前已实现并在 ESP32-S3 实板上验证：USB 帧握手、真实 BLE 扫描/连接、服务/特征/描述符发现、读写、CCCD 订阅与通知、MTU/RSSI、断开。此实现独立于 Mac RPC；尚未接入 `mac/` 的硬件后端。
 
-职责：USB 命令收发、扫描、连接、服务发现、特征/描述符读写、CCCD、通知、MTU/RSSI、断连与必要的配对。只提供通用 BLE 操作，不实现涂鸦或其他设备的业务协议。
+## 目录与边界
 
-建议实现顺序：板卡能力握手 → 扫描 → 单连接发现与读写 → 通知 → 取消/超时/拔插恢复 → 按实际需要扩展。
+- `main/main.c`：ESP-IDF + NimBLE Central / GATT Client，单连接，所有命令与 BLE 状态在 NimBLE 主机事件队列上处理。
+- `main/wire.c` / `wire.h`：有界长度 + CRC32 串口帧，不依赖 ESP-IDF，可在 Mac 编译测试。
+- `tools/serial_client.py`：串口协议客户端，不重试写入。
+- `tools/verify_hardware.py`：仅连接名为 BLEWright-HW 的自建测试外设，验证真实无线链路。
+- `tools/PeripheralFixture.swift`：独立 Mac CoreBluetooth 测试外设。不是 Mac RPC 模拟后端。
+- `tests/test_wire.py`：C/Python 双向编解码、损坏帧、分片输入等测试。
+- `USB_PROTOCOL.md`：USB 操作、帧、状态码与取消/租约约定。
+- `build/`、sdkconfig：本机生成文件，已忽略。原始 Flash 备份也在 build/，不入库。
 
-USB 串口帧规范尚未确定，必须在实现前定义版本、长度、请求标识、校验、能力声明、重启标识及流控。它与 Mac 对外的 RPC 是不同传输层，由 Mac 硬件后端转换；不得把 HCI 与 GATT 操作协议混为一谈。
+只支持 BLE，不实现经典蓝牙或涂鸦设备业务协议。ESP-IDF 5.5 将 incoming ATT notification 分发放在 BLE_GATTS 条件编译中，因此配置启用了 GATT_SERVER / ROLE_PERIPHERAL 依赖；固件没有调用广播或注册业务 GATT 服务，实际对外功能仍为 Central。
 
-第一版只允许一个客户端独占一块板，连接代次必须能屏蔽重连前的旧回调。硬件日志与命令数据分离，拔板/重启要使上层连接失效，不能自动重放写入。
+## 构建与烧录
+
+本次使用 ESP-IDF v5.5.1。先加载自己的 IDF 环境，例如：
+
+```sh
+source "$HOME/esp/esp-idf/export.sh"
+# 缺少 S3 编译器时安装该 IDF 版本要求的工具：
+python "$IDF_PATH/tools/idf_tools.py" install --targets esp32s3
+# 安装后重新加载 export.sh
+idf.py -C firmware build
+idf.py -C firmware -p /dev/cu.usbmodem2021401 flash
+```
+
+串口路径必须按实际开发板确认。本次是 USB JTAG/serial 303A:1001、ESP32-S3 rev0.2、16MB Flash、8MB PSRAM，MAC 28:84:85:5c:98:8c。烧录仅覆盖 bootloader、分区表、应用区，没有改 eFuse 或擦整片 Flash；不会在 NVS 初始化错误时擅自擦除 NVS。
+
+## 独立实板验证
+
+在仓库根目录执行（使用 IDF Python 环境，内含 pyserial；其他环境可安装 tools/requirements.txt）：
+
+```sh
+python firmware/tests/test_wire.py
+sh firmware/tools/build_fixture.sh
+firmware/build/BLEWrightHardwareFixture.app/Contents/MacOS/Fixture
+```
+
+测试外设显示 `ADVERTISING BLEWright-HW / FFF0` 后，另开终端：
+
+```sh
+source "$HOME/esp/esp-idf/export.sh"
+python firmware/tools/serial_client.py --port /dev/cu.usbmodem2021401 --scan 3
+python firmware/tools/verify_hardware.py --port /dev/cu.usbmodem2021401
+```
+
+完整验证包括 15 秒无主机命令的租约超时，通常需约 20 秒。测试程序只连接自建的 BLEWright-HW 外设；附近设备的广告不会写入提交的证据文件。
+
+## 板上状态与原固件恢复
+
+本次板上现运行 BLEWright 固件，原来的 16MB Flash 已在首次烧录前完整备份：
+
+`firmware/build/original-flash-2884855c988c.bin`
+
+SHA-256：`8562a74a28460315cfb738a60eea73a2017d4998e8f02870c553bbdac5fa117d`
+
+此备份只在当前电脑，故意不提交 Git。需要恢复时，先核实仍是同一块板、关闭占用串口的客户端，再执行：
+
+```sh
+source "$HOME/esp/esp-idf/export.sh"
+python -m esptool --chip esp32s3 --port /dev/cu.usbmodem2021401 --baud 921600 write_flash 0 firmware/build/original-flash-2884855c988c.bin
+```
+
+恢复会覆盖板上 Flash 内容，应只在明确需要退回原固件时执行。无需烧写 eFuse。
+
+## 后续 Mac 硬件后端
+
+按 USB 协议 hello 建立 bootId / generation 映射；扫描广播进入公共 RPC 的 advertisement。公共 discover 需要依次调用 services/characteristics/descriptors 组装树，使用 ATT handle 与 generation 建立临时实例 ID。读写结果及通知转为现有 RPC 的 result/event，保留原 NimBLE 状态，不能一律当作 Android 状态码。
+
+尚未验证配对/加密、多设备兼容、长时压力或 USB 重插恢复。当前未修改 Mac RPC、iOS 或 Android 的行为。

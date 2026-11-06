@@ -1,5 +1,12 @@
-import { createService } from "./service.js";
-const port = Number(process.env.BLEWRIGHT_PORT ?? 8765);
+import { readFileSync } from "node:fs";
+const protocol = JSON.parse(
+  readFileSync(
+    new URL("../../protocol/constants.json", import.meta.url),
+    "utf8",
+  ),
+);
+import { createService } from "./server.js";
+const port = Number(process.env.BLEWRIGHT_PORT ?? protocol.defaultPort);
 if (!Number.isInteger(port) || port < 0 || port > 65535)
   throw Error("Invalid BLEWRIGHT_PORT");
 const log = (entry) =>
@@ -17,7 +24,7 @@ server.listen(port, "127.0.0.1", () =>
     host: "127.0.0.1",
     port: server.address().port,
     backend: "mock",
-    version: 1,
+    version: protocol.version,
   }),
 );
 for (const signal of ["SIGINT", "SIGTERM"])

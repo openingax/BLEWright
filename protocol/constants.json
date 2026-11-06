@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "defaultPort": 8765,
+  "maxFrameBytes": 65536,
+  "requestTimeoutMs": 4000,
+  "heartbeatIntervalMs": 5000
+}

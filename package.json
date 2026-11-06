@@ -1,11 +1,16 @@
 {
-  "name": "blewright-android-prototype",
+  "name": "blewright",
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild src/agent.js --bundle --format=iife --platform=neutral --target=es2020 --outfile=dist/agent.js",
-    "test": "node --test test/*.test.js",
-    "serve": "node server/main.js"
+    "build": "npm run build:android",
+    "build:android": "esbuild android/simulatorble/agent.js --bundle --format=iife --platform=neutral --target=es2020 --outfile=dist/android/agent.js",
+    "build:probe": "python3 tests/android/build_probe.py",
+    "build:host": "python3 tests/android/build_host.py",
+    "test": "node --test tests/unit/*.test.js tests/integration/*.test.js",
+    "serve": "node mac/service/main.js",
+    "android:run": ".venv/bin/python android/launcher/run.py",
+    "verify:android": ".venv/bin/python tests/e2e/verify_rpc.py"
   },
   "devDependencies": {
     "buffer": "6.0.3",

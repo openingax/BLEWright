@@ -1,3 +1,4 @@
+import protocol from "../../protocol/constants.json";
 import Java from "frida-java-bridge";
 // This module contains Android projections only. Device data and BLE outcomes live on Mac.
 const links = new Map(),
@@ -88,12 +89,15 @@ function transportLost(reason) {
 function requestRpc(method, params = {}, done = () => {}) {
   if (!online) return false;
   const id = ++nextRequest;
-  const timer = setTimeout(() => transportLost("RPC timeout: " + method), 4000);
+  const timer = setTimeout(
+    () => transportLost("RPC timeout: " + method),
+    protocol.requestTimeoutMs,
+  );
   pending.set(id, { done, timer });
   send({
     event: "rpcRequest",
     request: {
-      version: 1,
+      version: protocol.version,
       sessionId: globalThis.BLEWRIGHT_SESSION,
       id,
       method,
@@ -108,7 +112,7 @@ function receive() {
     if (f.type === "transportLost") transportLost(f.reason);
     else if (
       f.sessionId === globalThis.BLEWRIGHT_SESSION &&
-      f.version === 1 &&
+      f.version === protocol.version &&
       online
     ) {
       if (f.type === "result") {
@@ -128,7 +132,7 @@ function receive() {
 receive();
 setInterval(() => {
   if (installed && online) requestRpc("ping");
-}, 5000);
+}, protocol.heartbeatIntervalMs);
 function remoteEvent(f) {
   if (f.event === "advertisement") {
     const scan = [...scans.values()].find((s) => s.id === f.scanId);

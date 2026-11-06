@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import net from "node:net";
 import { once } from "node:events";
-import { createService } from "../server/service.js";
+import { createService } from "../../mac/service/server.js";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function setup(t) {
   const entries = [],

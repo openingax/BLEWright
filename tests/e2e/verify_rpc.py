@@ -13,8 +13,8 @@ import sys
 import threading
 import time
 
-ROOT = Path(__file__).resolve().parent
-OUT = ROOT / 'verification'
+ROOT = Path(__file__).resolve().parents[2]
+OUT = ROOT / 'dist/tests/results'
 
 
 def pump(stream, messages, path):
@@ -28,7 +28,7 @@ def pump(stream, messages, path):
 
 def run_case(serial, name, fault=None):
     service_queue, client_queue = queue.Queue(), queue.Queue()
-    service = subprocess.Popen(['node', 'server/main.js'], cwd=ROOT,
+    service = subprocess.Popen(['node', 'mac/service/main.js'], cwd=ROOT,
                                env={**os.environ, 'BLEWRIGHT_PORT': '0'},
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     service_thread = threading.Thread(target=pump, args=(service.stdout, service_queue, OUT / f'{name}-service.jsonl'), daemon=True)
@@ -40,7 +40,7 @@ def run_case(serial, name, fault=None):
         ready = json.loads(first)
         assert ready['event'] == 'listening', first
         port = ready['port']
-        command = [sys.executable, str(ROOT / 'run.py'), '--serial', serial,
+        command = [sys.executable, str(ROOT / 'android/launcher/run.py'), '--serial', serial,
                    '--package', 'space.nomoloop.blewright.host', '--rpc-port', str(port),
                    '--fault-probe' if fault else '--probe']
         client = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -68,7 +68,7 @@ def run_case(serial, name, fault=None):
         code = client.wait(timeout=5)
         client_thread.join(timeout=2)
         if not passed or code != 0 or (fault and not injected):
-            raise RuntimeError(f'{name} failed; see verification/{name}-client.log')
+            raise RuntimeError(f'{name} failed; see {OUT}/{name}-client.log')
         return port
     finally:
         if client and client.poll() is None:
@@ -85,8 +85,12 @@ def run_case(serial, name, fault=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--serial', required=True)
+    parser.add_argument('--output', type=Path, help='Optional evidence output directory; defaults to dist/tests/results')
     args = parser.parse_args()
-    OUT.mkdir(exist_ok=True)
+    global OUT
+    if args.output:
+        OUT = args.output.resolve()
+    OUT.mkdir(parents=True, exist_ok=True)
     run_case(args.serial, 'rpc-normal')
     entries = [json.loads(line) for line in (OUT / 'rpc-normal-service.jsonl').read_text().splitlines()]
     methods = {e.get('method') for e in entries if e.get('direction') == 'in'}
@@ -96,7 +100,7 @@ def main():
     run_case(args.serial, 'rpc-disconnect', 'terminate')
     port = run_case(args.serial, 'rpc-timeout', 'stop')
     # No listener now: the launcher must fail, never use its old in-process fixture.
-    absent = subprocess.run([sys.executable, str(ROOT/'run.py'), '--serial', args.serial,
+    absent = subprocess.run([sys.executable, str(ROOT/'android/launcher/run.py'), '--serial', args.serial,
                              '--package', 'space.nomoloop.blewright.host', '--probe', '--rpc-port', str(port)],
                             cwd=ROOT, capture_output=True, text=True, timeout=15)
     (OUT/'rpc-unavailable-client.log').write_text(absent.stdout+absent.stderr)

@@ -1,8 +1,12 @@
 """Byte/message relay only: no BLE state or fixture data. One TCP session per launch."""
 import json
+from pathlib import Path
 import queue
 import socket
 import threading
+
+
+PROTOCOL = json.loads((Path(__file__).resolve().parents[2] / "protocol/constants.json").read_text())
 
 
 class RpcRelay:
@@ -11,7 +15,7 @@ class RpcRelay:
         self.stream = self.socket.makefile('rb')
         try:
             self.hello = self._read()
-            if self.hello.get('type') != 'hello' or self.hello.get('version') != 1:
+            if self.hello.get('type') != 'hello' or self.hello.get('version') != PROTOCOL['version']:
                 raise RuntimeError('Unsupported BLEWright protocol')
             if not isinstance(self.hello.get('sessionId'), str):
                 raise RuntimeError('Missing RPC session ID')
@@ -26,8 +30,8 @@ class RpcRelay:
         self.threads = []
 
     def _read(self):
-        line = self.stream.readline(65538)
-        if not line or len(line) > 65537 or not line.endswith(b'\n'):
+        line = self.stream.readline(PROTOCOL['maxFrameBytes'] + 2)
+        if not line or len(line) > PROTOCOL['maxFrameBytes'] + 1 or not line.endswith(b'\n'):
             raise ConnectionError('RPC service disconnected or sent an invalid frame')
         frame = json.loads(line)
         if not isinstance(frame, dict):
@@ -53,7 +57,7 @@ class RpcRelay:
         try:
             while not self.closed.is_set():
                 frame = self._read()
-                if frame.get('sessionId') != self.hello['sessionId'] or frame.get('version') != 1:
+                if frame.get('sessionId') != self.hello['sessionId'] or frame.get('version') != PROTOCOL['version']:
                     raise ConnectionError('RPC session mismatch')
                 self.script.post({'type': 'rpc-frame', 'payload': frame})
         except Exception as error:

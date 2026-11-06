@@ -1,6 +1,13 @@
+import { readFileSync } from "node:fs";
+const protocol = JSON.parse(
+  readFileSync(
+    new URL("../../protocol/constants.json", import.meta.url),
+    "utf8",
+  ),
+);
 import net from "node:net";
 import { randomUUID } from "node:crypto";
-import { Link, fixture as F } from "./model.js";
+import { Link, fixture as F } from "../backends/mock/model.js";
 
 export const database = [
   {
@@ -49,14 +56,14 @@ class Session {
     this.closed = false;
     this.buffer = "";
     socket.setEncoding("utf8");
-    this.send({ type: "hello", version: 1, sessionId: this.id });
+    this.send({ type: "hello", version: protocol.version, sessionId: this.id });
     socket.on("data", (chunk) => this.input(chunk));
     socket.on("error", () => {});
     socket.on("close", () => this.close());
   }
   send(data) {
     if (this.closed) return;
-    const frame = { version: 1, sessionId: this.id, ...data };
+    const frame = { version: protocol.version, sessionId: this.id, ...data };
     if (this.socket.writableLength > 1024 * 1024) {
       this.socket.destroy();
       return;
@@ -75,7 +82,7 @@ class Session {
     this.buffer += chunk;
     while (this.buffer.includes("\n")) {
       const index = this.buffer.indexOf("\n");
-      if (index > 65536) {
+      if (index > protocol.maxFrameBytes) {
         this.socket.destroy();
         return;
       }
@@ -88,11 +95,12 @@ class Session {
         return;
       }
     }
-    if (Buffer.byteLength(this.buffer) > 65536) this.socket.destroy();
+    if (Buffer.byteLength(this.buffer) > protocol.maxFrameBytes)
+      this.socket.destroy();
   }
   request(q) {
     if (
-      q.version !== 1 ||
+      q.version !== protocol.version ||
       q.sessionId !== this.id ||
       !Number.isSafeInteger(q.id) ||
       q.id <= this.lastId ||

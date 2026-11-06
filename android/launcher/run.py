@@ -7,9 +7,9 @@ import subprocess
 import sys
 import threading
 import time
-from rpc_relay import RpcRelay
+from rpc_relay import RpcRelay, PROTOCOL
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def main():
@@ -17,7 +17,7 @@ def main():
     parser.add_argument('--serial', required=True, help='adb/frida emulator ID, e.g. emulator-5554')
     parser.add_argument('--package', default='com.uwant.home')
     parser.add_argument('--probe', action='store_true', help='Load public-API DEX probe and exit with PASS/FAIL')
-    parser.add_argument('--rpc-port', type=int, default=8765, help='Mac loopback BLEWright RPC port')
+    parser.add_argument('--rpc-port', type=int, default=PROTOCOL['defaultPort'], help='Mac loopback BLEWright RPC port')
     parser.add_argument('--fault-probe', action='store_true', help='Wait for service shutdown and verify native disconnect/scan failure')
     args = parser.parse_args()
     args.probe = args.probe or args.fault_probe
@@ -29,13 +29,13 @@ def main():
         parser.error('Only emulators are allowed; refusing a physical device')
     if adb('shell', 'getprop', 'ro.build.version.sdk') != '35':
         parser.error('This prototype requires Android 15 / API 35')
-    agent = ROOT / 'dist/agent.js'
+    agent = ROOT / 'dist/android/agent.js'
     if not agent.is_file():
         parser.error('Build the agent first: npm ci && npm run build')
     if args.probe:
-        dex = ROOT / 'dist/classes.dex'
+        dex = ROOT / 'dist/tests/android/probe/classes.dex'
         if not dex.is_file():
-            parser.error('Compile the probe first: python3 build_probe.py')
+            parser.error('Compile the probe first: npm run build:probe')
         remote = '/data/local/tmp/blewright-probe.dex'
         adb('push', str(dex), remote)
         adb('shell', 'chmod', '444', remote)

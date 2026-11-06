@@ -8,7 +8,7 @@ root=Path(__file__).resolve().parent
 sdk=Path(os.environ.get('ANDROID_SDK_ROOT',str(Path.home()/'Library/Android/sdk')))
 java=Path(os.environ.get('JAVA_HOME') or subprocess.check_output(['/usr/libexec/java_home'],text=True).strip())
 bt=sdk/'build-tools/36.0.0'
-out=root/'dist/host';out.mkdir(parents=True,exist_ok=True)
+out=root.parents[1]/'dist/tests/android/host';out.mkdir(parents=True,exist_ok=True)
 classes=out/'classes';classes.mkdir(exist_ok=True)
 jar=sdk/'platforms/android-35/android.jar'
 def run(args):subprocess.run(list(map(str,args)),check=True,env={**os.environ,'JAVA_HOME':str(java)})

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Link } from "../server/model.js";
+import { Link } from "../../mac/backends/mock/model.js";
 test("operations require connection and serialize until completion", () => {
   const l = new Link();
   assert.equal(l.begin(), null);

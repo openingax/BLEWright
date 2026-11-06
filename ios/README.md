@@ -27,6 +27,18 @@ Mac RPC v1 未改变。iOS 的 `setNotifyValue` 在适配层串行执行 `notifi
 
 测试宿主以动态 framework 链接同一份源码，靠环境开关在启动时安装；原生探针没有调用自定义 BLE 方法。Swift Package 的 Simulator Debug 与 iOS device Release 构建也已通过。
 
+## CocoaPods 本地接入
+
+`ios/SimulatorBLE.podspec` 供本地开发使用；Podfile 在模拟器模式加入：
+
+```ruby
+pod 'SimulatorBLE', :path => '<BLEWright目录>/ios', :configurations => ['Debug']
+```
+
+仍需 `BLEWRIGHT_ENABLE=1`。`BWSimulatorBLEIsInstalled()` 可检查当前进程是否已安装钩子。启用时 CBManager 的类/实例 authorization 返回虚拟 allowedAlways，状态仍跟随 RPC 可用性；这不是系统权限授予。非 Simulator Debug 不安装，也不投影权限。
+
+UwantHomeApp 的 `codex/blewright-simulator` 分支已通过模拟器 Pods、现有 BluetoothActivator 和通用 GATT 验证；真实涂鸦协议尚未补齐。此本地 Pod 尚未作为公共 CocoaPods 发布。
+
 ## 重复验证
 
 从仓库根目录执行：
@@ -50,7 +62,7 @@ npm run verify:ios -- --simulator <已启动的模拟器UDID>
 
 - 代理对象依赖 CoreBluetooth 的运行时实现。iOS 27.1 的 CBPeripheral 析构会移除 delegate 自观察；代理构造时建立对应观察以匹配释放，已通过两轮对象释放验证，不能外推到其他系统。
 - 首版广告服务过滤只解析 16 位 Service UUID 列表；并非完整广播字段解析器。每次扫描由当前 mock 后端发送一次广播。
-- 不支持 Peripheral、L2CAP、included services、后台恢复、连接事件注册、复杂连接选项与完整 KVO 状态观察。真实权限行为不模拟。
+- 不支持 Peripheral、L2CAP、included services、后台恢复、连接事件注册、复杂连接选项与完整 KVO 状态观察。真实设备权限行为不模拟；启用后的 CBManager.authorization 是虚拟 allowedAlways，用于接入 App 权限门控。
 - 当前后端默认 MTU=23，报告最大写入长度 20；没有长写或 MTU 自动协商。无响应写入错误只有诊断日志，没有伪造 didWrite 回调。
 - 每个 central 拥有一个独立 RPC 会话；没有承诺跨 central 的全局 peripheral 身份与共享连接语义。
-- 若 SDK 没有 arm64-simulator 二进制，它仍不能加载；本库不解决该问题。Uwant / 涂鸦业务尚未接入测试。
+- 若 SDK 没有 arm64-simulator 二进制，它仍不能加载；本库不解决该问题。Uwant 模拟器通用 BLE 入口已接入测试；真实涂鸦业务仍未验证。

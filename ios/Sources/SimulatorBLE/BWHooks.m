@@ -3,6 +3,8 @@
 #if TARGET_OS_SIMULATOR && DEBUG
 #import "BWCentral.h"
 #import <objc/runtime.h>
+static BOOL BWInstalled = NO;
+BOOL BWSimulatorBLEIsInstalled(void) { return BWInstalled; }
 static const void *BWContextKey = &BWContextKey;
 static BWCentral *BWContext(id manager) { return objc_getAssociatedObject(manager, BWContextKey); }
 static void BWAttach(CBCentralManager *m, id delegate, dispatch_queue_t q) {
@@ -87,6 +89,15 @@ BOOL BWSimulatorBLEInstall(void) {
       BWReplace(c, @selector(retrievePeripheralsWithIdentifiers:), ^NSArray *(id m, NSArray *ids) {
         return [BWContext(m) retrieve:ids];
       });
+      // This is a virtual Simulator permission, never a real-device authorization grant.
+      BWReplace(CBManager.class, @selector(authorization), ^CBManagerAuthorization(id m) {
+        return CBManagerAuthorizationAllowedAlways;
+      });
+      BWReplace(object_getClass(CBManager.class), @selector(authorization),
+                ^CBManagerAuthorization(id m) {
+                  return CBManagerAuthorizationAllowedAlways;
+                });
+      BWInstalled = YES;
       NSLog(@"SimulatorBLE installed — Simulator Debug only, RPC backend");
     });
     return YES;
@@ -100,5 +111,6 @@ BOOL BWSimulatorBLEInstall(void) {
 }
 @end
 #else
+BOOL BWSimulatorBLEIsInstalled(void) { return NO; }
 BOOL BWSimulatorBLEInstall(void) { return NO; }
 #endif

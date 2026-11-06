@@ -1,12 +1,56 @@
-# iOS SimulatorBLE（规划，尚未实现）
+# iOS SimulatorBLE
 
-此目录只承载 iOS Simulator 的 CoreBluetooth 兼容层、平台集成和构建配置。未来代码按对象映射、调用拦截、RPC 传输、delegate 分发划分；不复制 Mac 后端的设备协议或模拟数据。
+已实现 Simulator 专用 CoreBluetooth 接管层，直接通过 TCP RPC 连接 Mac BLEWright 服务。没有修改测试 App 的扫描、连接、读写或 delegate 调用。
 
-接入顺序：
+**实测范围：Xcode 27.1、iPhone Duo / iOS 27.1 Simulator、arm64、Debug。** 当前是开发工具原型，不是 Apple 支持的 CoreBluetooth 扩展机制，也不是其它 runtime 的兼容性承诺。
 
-1. 针对一个固定 Simulator runtime，验证 CBCentralManager / CBPeripheral 对象和 delegate 能被正确代理。
-2. 使用 `protocol/` 的 RPC v1 接到现有 Mac mock 服务，完成与 Android 相同的扫描、连接、发现、读写和通知验收矩阵。
-3. 覆盖取消、断连、超时、回调队列、最大写入长度与无响应写入流控。
-4. 仅在 Simulator 调试构建链接兼容层，真机继续使用系统 CoreBluetooth。
+## 文件与边界
 
-协议传输可以与 Android 不同，但服务端操作语义必须相同。现有 SDK 缺少 arm64-simulator 二进制时，需使用可运行的替代 SDK；代理不能修复二进制平台不兼容。后台恢复与真实权限行为另做真机验证。
+- `Package.swift`：本地 Swift Package，产品名 SimulatorBLE。
+- `Sources/SimulatorBLE/BWHooks.m`：可选自动安装、CBCentralManager 方法接管；保留真实 manager 对象。
+- `BWObjects.*`：CBPeripheral / CBService / CBCharacteristic / CBDescriptor 的原生类型代理。
+- `BWCentral.*`：对象图、扫描过滤、连接代次、操作串行与 delegate 队列。只保存平台状态投影，不包含模拟设备数据。
+- `BWRPC.*`：Network.framework TCP、NDJSON、会话、请求关联、心跳和失联处理。
+- `BWProtocol.generated.h`：从根 `protocol/constants.json` 生成的发布用头文件，不手改；用 `tools/generate_protocol.py` 更新，构建前执行 `--check`。
+- `NOTICE.md` / `ImpossiBLE-LICENSE`：参考实现及 MIT 许可记录。
+
+Mac RPC v1 未改变。iOS 的 `setNotifyValue` 在适配层串行执行 `notification.set` 与 CCCD 写入，对 App 仍呈现一个 CoreBluetooth 操作；服务端继续是通知与数据的唯一来源。
+
+## App 接入
+
+1. 在 Xcode 添加本仓库 `ios/` 目录为本地 Swift Package，链接 SimulatorBLE。当前没有位于仓库根目录的远程 Package.swift，不是直接添加 Git URL 的分发方式。
+2. Debug Simulator 链接设置加入 `-ObjC`，确保静态包的自动安装类被加载；或在第一个 CBCentralManager 创建前调用一次 `BWSimulatorBLEInstall()`。
+3. 调试 scheme 启动环境设置 `BLEWRIGHT_ENABLE=1`、`BLEWRIGHT_PORT=8765`。默认端口来自公共常量。
+4. Mac 运行 `npm run serve`，App 原来的 CoreBluetooth 调用保持不变。
+
+自动安装只在 `TARGET_OS_SIMULATOR && DEBUG` 编译分支内生效，默认不开启。真机及 Release 的安装函数返回 NO。Simulator Debug 包的显式安装函数不依赖环境开关，调用者需自行仅在调试入口调用。
+
+测试宿主以动态 framework 链接同一份源码，靠环境开关在启动时安装；原生探针没有调用自定义 BLE 方法。Swift Package 的 Simulator Debug 与 iOS device Release 构建也已通过。
+
+## 重复验证
+
+从仓库根目录执行：
+
+```sh
+npm run build:ios -- --simulator <已存在的模拟器UDID>
+npm run verify:ios -- --simulator <已启动的模拟器UDID>
+```
+
+构建需要 Xcode 和 XcodeGen，生成工程和产物都在 `dist/ios/`。验证器安装独立宿主 `space.nomoloop.blewright.iosprobe`，为每个场景启动临时 Mac 服务，结束后停止测试 App 和临时服务；不操作 Uwant 业务 App。
+
+结果写入 `dist/tests/ios-results/`，可加 `--output /绝对路径`。正常探针包含主队列/自定义队列两轮；还测试服务关闭、暂停超时、未启动场景。PASS 必须同时与服务端 RPC 请求/通知证据匹配。
+
+## 实现与验证范围
+
+已实测：扫描和 UUID 过滤、停止、连接与立即取消、重复取消、服务/特征/描述符发现及父子对象关系、带响应写入与回读、超长写入失败、通知开启/关闭、无响应写入的通知与 ready 回调、主/自定义 delegate 队列、失联 poweredOff 与断开。
+
+`readRSSI`、描述符读写和已知设备 identifier 查询已有实现，但未在当前原生探针覆盖，不标为已实测。
+
+限制：
+
+- 代理对象依赖 CoreBluetooth 的运行时实现。iOS 27.1 的 CBPeripheral 析构会移除 delegate 自观察；代理构造时建立对应观察以匹配释放，已通过两轮对象释放验证，不能外推到其他系统。
+- 首版广告服务过滤只解析 16 位 Service UUID 列表；并非完整广播字段解析器。每次扫描由当前 mock 后端发送一次广播。
+- 不支持 Peripheral、L2CAP、included services、后台恢复、连接事件注册、复杂连接选项与完整 KVO 状态观察。真实权限行为不模拟。
+- 当前后端默认 MTU=23，报告最大写入长度 20；没有长写或 MTU 自动协商。无响应写入错误只有诊断日志，没有伪造 didWrite 回调。
+- 每个 central 拥有一个独立 RPC 会话；没有承诺跨 central 的全局 peripheral 身份与共享连接语义。
+- 若 SDK 没有 arm64-simulator 二进制，它仍不能加载；本库不解决该问题。Uwant / 涂鸦业务尚未接入测试。

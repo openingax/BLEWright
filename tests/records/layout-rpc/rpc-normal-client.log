@@ -1,0 +1,22 @@
+/Users/xieliying/UwantCode/BLEWright/dist/tests/android/probe/classes.dex: 1 file pushed, 0 skipped. 27.5 MB/s (24052 bytes in 0.001s)
+{"type": "send", "payload": {"event": "ready", "api": 35, "mode": "RPC — Mac service owns BLE backend", "sessionId": "e6af6394-8000-41ab-8289-5a436f7255a5"}}
+started; inspect BLEWrightProbe logcat for PASS/FAIL
+{"type": "send", "payload": {"event": "scanResult", "address": "02:00:00:00:00:01", "source": "rpc"}}
+{"type": "send", "payload": {"event": "callback", "method": "onConnectionStateChange"}}
+{"type": "send", "payload": {"event": "callback", "method": "onServicesDiscovered"}}
+{"type": "send", "payload": {"event": "callback", "method": "onDescriptorWrite"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicChanged"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicWrite"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicChanged"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicRead"}}
+{"type": "send", "payload": {"event": "callback", "method": "onConnectionStateChange"}}
+{"type": "send", "payload": {"event": "scanResult", "address": "02:00:00:00:00:01", "source": "rpc"}}
+{"type": "send", "payload": {"event": "callback", "method": "onConnectionStateChange"}}
+{"type": "send", "payload": {"event": "callback", "method": "onServicesDiscovered"}}
+{"type": "send", "payload": {"event": "callback", "method": "onDescriptorWrite"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicChanged"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicWrite"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicChanged"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicRead"}}
+{"type": "send", "payload": {"event": "callback", "method": "onConnectionStateChange"}}
+PASS: native scan/filter/stop/duplicate, connectGatt, service identity, legacy+modern write/read/notify, callback Handler, disconnect/close/cancel

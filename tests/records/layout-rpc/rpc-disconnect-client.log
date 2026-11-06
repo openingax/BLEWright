@@ -1,0 +1,9 @@
+/Users/xieliying/UwantCode/BLEWright/dist/tests/android/probe/classes.dex: 1 file pushed, 0 skipped. 66.8 MB/s (24052 bytes in 0.000s)
+{"type": "send", "payload": {"event": "ready", "api": 35, "mode": "RPC — Mac service owns BLE backend", "sessionId": "742992ce-0720-4ab1-987c-588824602285"}}
+started; inspect BLEWrightProbe logcat for PASS/FAIL
+{"type": "send", "payload": {"event": "callback", "method": "onConnectionStateChange"}}
+{"type": "send", "payload": {"event": "scanResult", "address": "02:00:00:00:00:01", "source": "rpc"}}
+CONNECTED_WAITING_FOR_SERVICE_LOSS
+{"type": "send", "payload": {"event": "rpcUnavailable", "reason": "RPC service disconnected or sent an invalid frame"}}
+{"type": "send", "payload": {"event": "callback", "method": "onConnectionStateChange"}}
+PASS: RPC loss disconnects GATT, fails scan, marks adapter off and rejects further operations

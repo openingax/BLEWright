@@ -156,6 +156,19 @@ function remoteEvent(f) {
           log("scanResult", { address: d.address, source: "rpc" });
         }
       });
+  } else if (f.event === "disconnected") {
+    const s = remoteLinks.get(f.connectionId);
+    if (!s || ["closed", "disconnected"].includes(s.phase)) return;
+    s.phase = "disconnected";
+    s.epoch++;
+    s.busy = false;
+    s.notifications.clear();
+    const epoch = s.epoch;
+    later(s.handler, () => {
+      if (s.phase === "disconnected" && s.epoch === epoch)
+        callback(s, "onConnectionStateChange", 133, 0);
+    });
+    log("remoteDisconnect", { reason: f.reason });
   } else if (f.event === "notification") {
     const s = remoteLinks.get(f.connectionId),
       c = s?.characteristics.get(f.attributeId);

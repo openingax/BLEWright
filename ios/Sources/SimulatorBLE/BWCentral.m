@@ -222,6 +222,33 @@ static BOOL BWMatches(CBUUID *uuid, NSArray *filter) {
                       advertisementData:ad
                                    RSSI:device[@"rssi"]];
         });
+    } else if ([f[@"event"] isEqual:@"disconnected"]) {
+        for (BWPeripheral *p in _known.allValues) {
+            if (![p.connectionID isEqual:f[@"connectionId"]] ||
+                p.state == CBPeripheralStateDisconnected)
+                continue;
+            p.epoch++;
+            NSUInteger epoch = p.epoch;
+            p.bwState = CBPeripheralStateDisconnected;
+            p.bwCanSend = NO;
+            p.busy = NO;
+            [p.operations removeAllObjects];
+            for (BWCharacteristic *c in p.characteristics.allValues)
+                c.bwNotifying = NO;
+            NSError *error = [NSError errorWithDomain:CBErrorDomain
+                                                 code:CBErrorUnknown
+                                             userInfo:@{
+                                                 NSLocalizedDescriptionKey : @"外设连接已断开",
+                                                 @"BLEWrightReason" : f[@"reason"] ?: @0
+                                             }];
+            dispatch_async(_callbackQueue, ^{
+              if (p.epoch != epoch)
+                  return;
+              id<CBCentralManagerDelegate> d = self.delegate;
+              if ([d respondsToSelector:@selector(centralManager:didDisconnectPeripheral:error:)])
+                  [d centralManager:self.manager didDisconnectPeripheral:p error:error];
+            });
+        }
     } else if ([f[@"event"] isEqual:@"notification"]) {
         for (BWPeripheral *p in _known.allValues) {
             if (![p.connectionID isEqual:f[@"connectionId"]] ||
@@ -252,6 +279,14 @@ static BOOL BWMatches(CBUUID *uuid, NSArray *filter) {
           return;
       p.epoch++;
       NSUInteger epoch = p.epoch;
+      // Attribute IDs belong to one remote connection generation. Never reuse
+      // cached IDs after reconnecting to real hardware.
+      p.schema = nil;
+      p.bwServices = nil;
+      [p.allServices removeAllObjects];
+      [p.characteristics removeAllObjects];
+      [p.operations removeAllObjects];
+      p.busy = NO;
       p.bwState = CBPeripheralStateConnecting;
       p.connectionID = NSUUID.UUID.UUIDString;
       [self.rpc request:@"connect"

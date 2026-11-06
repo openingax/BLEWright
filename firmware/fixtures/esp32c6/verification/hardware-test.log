@@ -1,0 +1,10 @@
+{"pass": "passive advertisement matches USB-proven C6 address, address type and boot nonce"}
+{"pass": "connect only to the identified ESP32-C6"}
+{"pass": "FFF0 / FFF1 discovery and NimBLE-generated CCCD"}
+{"pass": "read real C6 characteristic (fresh boot initial BLE checked when untouched)"}
+{"pass": "with-response write and identical readback"}
+{"pass": "CCCD subscribe and real BLE echo notification"}
+{"pass": "unsubscribe and without-response write/read"}
+{"pass": "disconnect completes; C6 resumes advertising"}
+{"pass": "C6 USB released; fresh passive advertisement retains the prepared nonce"}
+{"result": "PASS", "steps": ["passive advertisement matches USB-proven C6 address, address type and boot nonce", "connect only to the identified ESP32-C6", "FFF0 / FFF1 discovery and NimBLE-generated CCCD", "read real C6 characteristic (fresh boot initial BLE checked when untouched)", "with-response write and identical readback", "CCCD subscribe and real BLE echo notification", "unsubscribe and without-response write/read", "disconnect completes; C6 resumes advertising", "C6 USB released; fresh passive advertisement retains the prepared nonce"], "connectedTargets": 1, "target": "USB-identified ESP32-C6 only"}

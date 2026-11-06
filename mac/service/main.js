@@ -6,6 +6,11 @@ import {
   ScanCoordinator,
   ScanOnlySession,
 } from "../backends/esp32-scan/session.js";
+import { ControlledWorker } from "../backends/esp32-controlled/board-worker.js";
+import {
+  ControlledCoordinator,
+  ControlledSession,
+} from "../backends/esp32-controlled/session.js";
 const protocol = JSON.parse(
   readFileSync(
     new URL("../../protocol/constants.json", import.meta.url),
@@ -16,7 +21,7 @@ const port = Number(process.env.BLEWRIGHT_PORT ?? protocol.defaultPort),
   mode = process.env.BLEWRIGHT_BACKEND ?? "mock";
 if (!Number.isInteger(port) || port < 0 || port > 65535)
   throw Error("Invalid BLEWRIGHT_PORT");
-if (!["mock", "esp32-scan"].includes(mode))
+if (!["mock", "esp32-scan", "esp32-controlled"].includes(mode))
   throw Error("Unknown BLEWRIGHT_BACKEND");
 const log = (entry) =>
   process.stdout.write(
@@ -35,10 +40,21 @@ async function shutdown() {
 }
 try {
   let backendFactory;
-  if (mode === "esp32-scan") {
+  if (mode !== "mock") {
     const serial = process.env.BLEWRIGHT_SERIAL;
     if (!serial) throw Error("BLEWRIGHT_SERIAL is required");
-    worker = new BoardWorker({
+    const allowFile = process.env.BLEWRIGHT_ALLOW_FILE;
+    if (mode === "esp32-controlled" && !allowFile)
+      throw Error(
+        "BLEWRIGHT_ALLOW_FILE is required for an exact USB-verified C6 identity",
+      );
+    const allow =
+      allowFile && mode === "esp32-controlled"
+        ? JSON.parse(readFileSync(allowFile, "utf8"))
+        : undefined;
+    const Worker = mode === "esp32-controlled" ? ControlledWorker : BoardWorker;
+    worker = new Worker({
+      ...(allow ? { allow } : {}),
       port: serial,
       python:
         process.env.BLEWRIGHT_PYTHON ??
@@ -52,9 +68,22 @@ try {
       passive: true,
       connected: false,
     });
-    coordinator = new ScanCoordinator(worker, { log });
-    backendFactory = (options) =>
-      new ScanOnlySession({ ...options, coordinator });
+    if (mode === "esp32-controlled") {
+      coordinator = new ControlledCoordinator(worker, { allow, log });
+      backendFactory = (options) =>
+        new ControlledSession({ ...options, coordinator });
+      coordinator.on("unavailable", (reason) => {
+        if (!closing) {
+          log({ event: "backendUnavailable", reason });
+          process.exitCode = 1;
+          shutdown();
+        }
+      });
+    } else {
+      coordinator = new ScanCoordinator(worker, { log });
+      backendFactory = (options) =>
+        new ScanOnlySession({ ...options, coordinator });
+    }
     worker.on("unavailable", (reason) => {
       if (!closing) {
         log({ event: "backendUnavailable", reason });
@@ -66,7 +95,7 @@ try {
   server = createService({
     log,
     backendFactory,
-    redactAdvertisements: mode === "esp32-scan",
+    redactAdvertisements: mode !== "mock",
   });
   server.on("error", (error) => {
     log({ event: "serverError", message: error.message });

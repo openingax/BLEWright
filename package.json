@@ -22,7 +22,9 @@
     "verify:explorer:edges": ".venv/bin/python tests/e2e/verify_explorer_edges.py",
     "explorer:workstation": ".venv/bin/python android/explorer/run_workstation.py",
     "test:explorer:filters": "python3 tests/android/test_explorer_filters.py",
-    "verify:explorer:filters": ".venv/bin/python tests/e2e/verify_explorer_filters.py"
+    "verify:explorer:filters": ".venv/bin/python tests/e2e/verify_explorer_filters.py",
+    "verify:explorer:hardware": ".venv/bin/python tests/e2e/verify_explorer_live_ui.py",
+    "build:ui-tools": "python3 tests/android/build_ui_tools.py"
   },
   "devDependencies": {
     "buffer": "6.0.3",

@@ -102,13 +102,17 @@ def main():
         if pid is not None:
             try:
                 device.kill(pid)
-            except frida.Error:
-                pass
+            except Exception as cleanup_error:
+                # Frida exposes concrete exception classes, not frida.Error. Cleanup
+                # must never replace the original spawn/attach/probe failure.
+                print(f'BLEWright cleanup: {cleanup_error}', file=sys.stderr)
         if session is not None:
             try:
                 session.detach()
-            except frida.Error:
-                pass
+            except Exception as cleanup_error:
+                # Frida exposes concrete exception classes, not frida.Error. Cleanup
+                # must never replace the original spawn/attach/probe failure.
+                print(f'BLEWright cleanup: {cleanup_error}', file=sys.stderr)
 
 
 if __name__ == '__main__':

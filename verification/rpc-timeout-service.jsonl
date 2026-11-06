@@ -1,0 +1,9 @@
+{"time":"2026-11-06T02:50:33.865Z","event":"listening","host":"127.0.0.1","port":50918,"backend":"mock","version":1}
+{"time":"2026-11-06T02:50:34.036Z","sessionId":"4888e397-5c9e-4941-9753-3b493cfde54b","direction":"out","type":"hello","version":1}
+{"time":"2026-11-06T02:50:34.615Z","sessionId":"4888e397-5c9e-4941-9753-3b493cfde54b","direction":"in","id":1,"method":"connect","connectionId":"connection-1"}
+{"time":"2026-11-06T02:50:34.641Z","sessionId":"4888e397-5c9e-4941-9753-3b493cfde54b","direction":"out","type":"result","id":1,"result":{"status":0}}
+{"time":"2026-11-06T02:50:34.658Z","sessionId":"4888e397-5c9e-4941-9753-3b493cfde54b","direction":"in","id":2,"method":"scan.start"}
+{"time":"2026-11-06T02:50:34.658Z","sessionId":"4888e397-5c9e-4941-9753-3b493cfde54b","direction":"out","type":"result","id":2,"result":{}}
+{"time":"2026-11-06T02:50:34.741Z","sessionId":"4888e397-5c9e-4941-9753-3b493cfde54b","direction":"out","type":"event","event":"advertisement","scanId":"scan-1","device":{"address":"02:00:00:00:00:01","name":"BLEWright","type":2,"rssi":-48,"advertising":[2,1,6,3,3,240,255,10,9,66,76,69,87,114,105,103,104,116]}}
+{"time":"2026-11-06T02:50:43.842Z","sessionId":"4888e397-5c9e-4941-9753-3b493cfde54b","direction":"in","id":3,"method":"ping"}
+{"time":"2026-11-06T02:50:43.842Z","sessionId":"4888e397-5c9e-4941-9753-3b493cfde54b","direction":"out","type":"result","id":3,"result":{}}

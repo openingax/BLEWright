@@ -1,0 +1,22 @@
+/Users/xieliying/UwantCode/BLEWright/dist/classes.dex: 1 file pushed, 0 skipped. 73.1 MB/s (24052 bytes in 0.000s)
+{"type": "send", "payload": {"event": "ready", "api": 35, "mode": "RPC — Mac service owns BLE backend", "sessionId": "9a49f9d4-eb3d-4dfb-8ed5-dc4f60fee0e5"}}
+started; inspect BLEWrightProbe logcat for PASS/FAIL
+{"type": "send", "payload": {"event": "scanResult", "address": "02:00:00:00:00:01", "source": "rpc"}}
+{"type": "send", "payload": {"event": "callback", "method": "onConnectionStateChange"}}
+{"type": "send", "payload": {"event": "callback", "method": "onServicesDiscovered"}}
+{"type": "send", "payload": {"event": "callback", "method": "onDescriptorWrite"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicChanged"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicWrite"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicChanged"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicRead"}}
+{"type": "send", "payload": {"event": "callback", "method": "onConnectionStateChange"}}
+{"type": "send", "payload": {"event": "scanResult", "address": "02:00:00:00:00:01", "source": "rpc"}}
+{"type": "send", "payload": {"event": "callback", "method": "onConnectionStateChange"}}
+{"type": "send", "payload": {"event": "callback", "method": "onServicesDiscovered"}}
+{"type": "send", "payload": {"event": "callback", "method": "onDescriptorWrite"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicChanged"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicWrite"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicChanged"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicRead"}}
+{"type": "send", "payload": {"event": "callback", "method": "onConnectionStateChange"}}
+PASS: native scan/filter/stop/duplicate, connectGatt, service identity, legacy+modern write/read/notify, callback Handler, disconnect/close/cancel

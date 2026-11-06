@@ -1,0 +1,25 @@
+/Users/xieliying/UwantCode/BLEWright/dist/classes.dex: 1 file pushed, 0 skipped. 65.9 MB/s (20912 bytes in 0.000s)
+{"type": "send", "payload": {"event": "ready", "api": 35, "fixture": {"address": "02:00:00:00:00:01", "name": "BLEWright", "service": "0000fff0-0000-1000-8000-00805f9b34fb", "characteristic": "0000fff1-0000-1000-8000-00805f9b34fb", "cccd": "00002902-0000-1000-8000-00805f9b34fb"}, "mode": "MOCK ONLY — process-local adapter state"}}
+started; inspect BLEWrightProbe logcat for PASS/FAIL
+{"type": "send", "payload": {"event": "connect", "address": "02:00:00:00:00:01"}}
+{"type": "send", "payload": {"event": "scanResult", "address": "02:00:00:00:00:01"}}
+{"type": "send", "payload": {"event": "callback", "method": "onConnectionStateChange"}}
+{"type": "send", "payload": {"event": "callback", "method": "onServicesDiscovered"}}
+{"type": "send", "payload": {"event": "callback", "method": "onDescriptorWrite"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicWrite"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicChanged"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicRead"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicChanged"}}
+{"type": "send", "payload": {"event": "callback", "method": "onConnectionStateChange"}}
+{"type": "send", "payload": {"event": "connect", "address": "02:00:00:00:00:01"}}
+{"type": "send", "payload": {"event": "scanResult", "address": "02:00:00:00:00:01"}}
+{"type": "send", "payload": {"event": "callback", "method": "onConnectionStateChange"}}
+{"type": "send", "payload": {"event": "callback", "method": "onServicesDiscovered"}}
+{"type": "send", "payload": {"event": "callback", "method": "onDescriptorWrite"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicWrite"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicChanged"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicRead"}}
+{"type": "send", "payload": {"event": "callback", "method": "onCharacteristicChanged"}}
+{"type": "send", "payload": {"event": "connect", "address": "02:00:00:00:00:01"}}
+{"type": "send", "payload": {"event": "callback", "method": "onConnectionStateChange"}}
+PASS: native scan/filter/stop/duplicate, connectGatt, service identity, legacy+modern write/read/notify, callback Handler, disconnect/close/cancel

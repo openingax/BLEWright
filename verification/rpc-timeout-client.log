@@ -1,0 +1,9 @@
+/Users/xieliying/UwantCode/BLEWright/dist/classes.dex: 1 file pushed, 0 skipped. 221.0 MB/s (24052 bytes in 0.000s)
+{"type": "send", "payload": {"event": "ready", "api": 35, "mode": "RPC — Mac service owns BLE backend", "sessionId": "4888e397-5c9e-4941-9753-3b493cfde54b"}}
+started; inspect BLEWrightProbe logcat for PASS/FAIL
+{"type": "send", "payload": {"event": "callback", "method": "onConnectionStateChange"}}
+{"type": "send", "payload": {"event": "scanResult", "address": "02:00:00:00:00:01", "source": "rpc"}}
+CONNECTED_WAITING_FOR_SERVICE_LOSS
+{"type": "send", "payload": {"event": "rpcUnavailable", "reason": "RPC timeout: ping"}}
+{"type": "send", "payload": {"event": "callback", "method": "onConnectionStateChange"}}
+PASS: RPC loss disconnects GATT, fails scan, marks adapter off and rejects further operations

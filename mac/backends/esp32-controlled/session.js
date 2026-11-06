@@ -340,6 +340,7 @@ export class ControlledCoordinator extends EventEmitter {
   }
   async handle(session, method, p) {
     if (method === "ping") return {};
+    if (session.scanOnly && !["scan.start", "scan.stop"].includes(method)) throw Error("SCAN_ONLY");
     if (method === "scan.start" || method === "scan.stop") {
       if (!validID(p.scanId)) throw Error("INVALID_ARGUMENT");
       return method === "scan.start"
@@ -415,10 +416,9 @@ export class ControlledCoordinator extends EventEmitter {
     if (e.event === "advertisement") {
       const s = this.scan;
       if (!s || e.scanId !== s.boardScanId) return;
-      try {
-        this.identity.assertConnect(e.address, e.addressType);
-      } catch {
-        return;
+      if (!s.session.scanOnly) {
+        try { this.identity.assertConnect(e.address, e.addressType); }
+        catch { return; }
       }
       const device = this.cache.update(e);
       this.frames++;
@@ -484,6 +484,7 @@ export class ControlledCoordinator extends EventEmitter {
         await this.disconnect(session, this.record.id);
     } catch (error) {
       this.emit("unavailable", error.message);
+      throw error;
     } finally {
       if (this.owner === session) this.owner = null;
     }
@@ -498,7 +499,8 @@ export class ControlledCoordinator extends EventEmitter {
   }
 }
 export class ControlledSession {
-  constructor({ send, coordinator }) {
+  constructor({ send, coordinator, scanOnly = false }) {
+    this.scanOnly = scanOnly;
     this.send = send;
     this.coordinator = coordinator;
     this.closed = false;
@@ -521,6 +523,6 @@ export class ControlledSession {
   close() {
     if (this.closed) return;
     this.closed = true;
-    this.coordinator.release(this);
+    return this.coordinator.release(this);
   }
 }

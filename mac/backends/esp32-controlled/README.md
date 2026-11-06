@@ -47,3 +47,9 @@ const backendFactory = options => new ControlledSession({ ...options, coordinato
 ## 已知边界
 
 当前仍为单连接、前台开发原型；不支持配对/加密、多连接、长写、自动重放。完整 discover 是多步过程，RPC 的4秒预算可能不足以覆盖大型设备服务树；本模式仅针对小型 C6 fixture。关闭 worker 时尝试清理3秒，未能确认断开时保留诊断，最终由 S3 的15秒租约回收兜底，不能把未知结果写成成功。
+
+## App 内模式切换与共享串口
+
+启动时可设置 `BLEWRIGHT_SCAN_PORT=8766`，在受控 8876 入口旁提供只读扫描入口；两者复用同一个 worker/coordinator，不重复打开串口。只读会话转发所有广播，但在公共 handle 入口拒绝全部连接/GATT 操作；受控会话仍仅转发并连接精确身份 C6。两种会话保持排他占用，不能抢占其它客户端。
+
+客户端通过 `session.end` 等待停止扫描/断开完成后再建立新会话。传输层统一处理该控制方法，只有 backend.close 成功才回复，避免 App 模式已切换而硬件仍在旧会话。该方法也适用于 mock 与独立 scan-only 后端。断开或超时不会重放写入。

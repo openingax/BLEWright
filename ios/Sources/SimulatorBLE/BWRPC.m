@@ -1,9 +1,13 @@
 #import "BWRPC.h"
 #import "BWProtocol.generated.h"
+#import "include/SimulatorBLE.h"
 #if TARGET_OS_SIMULATOR && DEBUG
 #import <Network/Network.h>
+static uint16_t BWConfiguredPort = 0;
+void BWSimulatorBLESetPort(uint16_t port) { @synchronized(BWRPC.class) { BWConfiguredPort = port; } }
 @interface BWRPC ()
 @property(nonatomic) nw_connection_t connection;
+@property(nonatomic, copy) NSString *port;
 @property(nonatomic) dispatch_queue_t queue;
 @property(atomic) BOOL ready;
 @property(nonatomic) BOOL ended;
@@ -19,15 +23,18 @@
         _queue = dispatch_queue_create("space.nomoloop.blewright.rpc", DISPATCH_QUEUE_SERIAL);
         _buffer = [NSMutableData data];
         _pending = [NSMutableDictionary dictionary];
+        @synchronized(BWRPC.class) {
+            _port = BWConfiguredPort ? [@(BWConfiguredPort) stringValue] :
+                (NSProcessInfo.processInfo.environment[@"BLEWRIGHT_PORT"] ?: [@(BW_RPC_PORT) stringValue]);
+        }
     }
     return self;
 }
 - (void)start {
     dispatch_async(_queue, ^{
-      NSString *port =
-          NSProcessInfo.processInfo.environment[@"BLEWRIGHT_PORT"] ?: [@(BW_RPC_PORT) stringValue];
+
       self.connection = nw_connection_create(
-          nw_endpoint_create_host("127.0.0.1", port.UTF8String),
+          nw_endpoint_create_host("127.0.0.1", self.port.UTF8String),
           nw_parameters_create_secure_tcp(NW_PARAMETERS_DISABLE_PROTOCOL,
                                           NW_PARAMETERS_DEFAULT_CONFIGURATION));
       nw_connection_set_queue(self.connection, self.queue);
@@ -191,6 +198,26 @@
         _onClose([NSError errorWithDomain:@"BLEWrightRPC"
                                      code:3
                                  userInfo:@{NSLocalizedDescriptionKey : reason}]);
+}
+- (void)endSession:(void (^)(NSError *))completion {
+    dispatch_async(_queue, ^{
+      // Resolve once on either acknowledged cleanup or transport failure/timeout.
+      __block BOOL completed = NO;
+      void (^finish)(NSError *) = ^(NSError *error) {
+        if (completed) return;
+        completed = YES;
+        self.onClose = nil;
+        self.onReady = nil;
+        self.onEvent = nil;
+        [self fail:@"Session ended"];
+        dispatch_async(dispatch_get_main_queue(), ^{ completion(error); });
+      };
+      self.onClose = finish;
+      if (self.ended || !self.ready) { finish(nil); return; }
+      [self request:@"session.end" params:@{} completion:^(NSDictionary *result, NSError *error) {
+        finish(error);
+      }];
+    });
 }
 - (void)stop {
     dispatch_async(_queue, ^{

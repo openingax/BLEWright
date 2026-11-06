@@ -30,11 +30,13 @@ const log = (entry) =>
 let worker,
   coordinator,
   server,
+  scanServer,
   closing = false;
 async function shutdown() {
   if (closing) return;
   closing = true;
   if (server) await server.shutdown();
+  if (scanServer) await scanServer.shutdown();
   if (coordinator) log(coordinator.summary());
   worker?.close();
 }
@@ -111,6 +113,17 @@ try {
       version: protocol.version,
     }),
   );
+  // Optional read-only listener shares the same serial owner and cleanup barrier.
+  // No second worker opens the S3 port.
+  if (mode === "esp32-controlled" && process.env.BLEWRIGHT_SCAN_PORT) {
+    const scanPort = Number(process.env.BLEWRIGHT_SCAN_PORT);
+    if (!Number.isInteger(scanPort) || scanPort < 1 || scanPort > 65535 || scanPort === port)
+      throw Error("Invalid BLEWRIGHT_SCAN_PORT");
+    scanServer = createService({ log, redactAdvertisements: true,
+      backendFactory: options => new ControlledSession({...options, coordinator, scanOnly: true}) });
+    scanServer.on("error", error => { log({event: "serverError", message: error.message}); process.exitCode = 1; shutdown(); });
+    scanServer.listen(scanPort, "127.0.0.1", () => log({event: "listening", port: scanPort, backend: "shared-scan-only"}));
+  }
   for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, shutdown);
 } catch (error) {
   log({ event: "startupError", message: error.message });

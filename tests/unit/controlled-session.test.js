@@ -282,3 +282,41 @@ test("NimBLE host errors are not misreported as ATT codes or successful writes",
     assert.equal(result.reason, "synthetic");
   }
 });
+
+test('read-only and C6 sessions share one owner; release awaits cleanup before transfer', async () => {
+  const x = setup(), frames = [];
+  const office = new ControlledSession({coordinator: x.coordinator, scanOnly: true, send: f => frames.push(f)});
+  await x.coordinator.handle(office, 'scan.start', {scanId: 'office'});
+  x.worker.emit('boardEvent', {...adv, address: '00:00:00:00:00:99'});
+  assert.equal(frames.filter(f => f.event === 'advertisement').length, 1);
+  for (const method of ['connect', 'read', 'write', 'notification.set', 'discover', 'cancel', 'unknown']) {
+    await assert.rejects(x.coordinator.handle(office, method, {connectionId: 'c1', address: allow.address}), /SCAN_ONLY/);
+  }
+  await assert.rejects(x.coordinator.handle(x.session, 'scan.start', {scanId: 'c6'}), /BUSY/);
+  assert.equal(x.worker.calls.filter(c => c.method === 'connect').length, 0);
+  await office.close();
+  await x.coordinator.handle(x.session, 'scan.start', {scanId: 'c6'});
+  x.worker.emit('boardEvent', {...adv, address: '00:00:00:00:00:99'});
+  assert.equal(x.frames.length, 0);
+  x.worker.emit('boardEvent', adv);
+  assert.equal(x.frames.filter(f => f.event === 'advertisement').length, 1);
+  await x.session.close();
+  assert.equal(x.coordinator.owner, null);
+});
+
+test('closing a connected C6 finishes disconnect before ownership is released', async () => {
+  const x = setup();
+  await connect(x);
+  const original = x.worker.command.bind(x.worker);
+  let release;
+  x.worker.command = async (method, p) => {
+    if (method === 'disconnect') await new Promise(r => { release = r; });
+    return original(method, p);
+  };
+  const closing = x.session.close();
+  await next();
+  assert.equal(x.coordinator.owner, x.session);
+  release(); await closing;
+  assert.equal(x.coordinator.record, null);
+  assert.equal(x.coordinator.owner, null);
+});

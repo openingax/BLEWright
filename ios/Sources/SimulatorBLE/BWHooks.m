@@ -7,6 +7,16 @@ static BOOL BWInstalled = NO;
 BOOL BWSimulatorBLEIsInstalled(void) { return BWInstalled; }
 static const void *BWContextKey = &BWContextKey;
 static BWCentral *BWContext(id manager) { return objc_getAssociatedObject(manager, BWContextKey); }
+void BWSimulatorBLEEndSession(CBCentralManager *manager, void (^completion)(NSError *)) {
+    BWCentral *context = BWContext(manager);
+    if (!context) { dispatch_async(dispatch_get_main_queue(), ^{ completion(nil); }); return; }
+    context.delegate = nil;
+    [context.rpc endSession:^(NSError *error) {
+        // Keep the manager/context alive until the cleanup acknowledgement arrives.
+        objc_setAssociatedObject(manager, BWContextKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        completion(error);
+    }];
+}
 static void BWAttach(CBCentralManager *m, id delegate, dispatch_queue_t q) {
     BWCentral *c = BWContext(m);
     if (!c) {
@@ -111,6 +121,8 @@ BOOL BWSimulatorBLEInstall(void) {
 }
 @end
 #else
+void BWSimulatorBLESetPort(uint16_t port) {}
+void BWSimulatorBLEEndSession(CBCentralManager *manager, void (^completion)(NSError *)) { completion(nil); }
 BOOL BWSimulatorBLEIsInstalled(void) { return NO; }
 BOOL BWSimulatorBLEInstall(void) { return NO; }
 #endif

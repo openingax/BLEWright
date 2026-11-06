@@ -126,6 +126,6 @@ export class ScanOnlySession {
   close() {
     if (this.closed) return;
     this.closed = true;
-    this.coordinator.stop(this).catch(() => {});
+    return this.coordinator.stop(this);
   }
 }

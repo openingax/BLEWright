@@ -12,6 +12,7 @@ typedef void (^BWResult)(NSDictionary *_Nullable, NSError *_Nullable);
 - (void)start;
 - (void)request:(NSString *)method params:(NSDictionary *)params completion:(BWResult)completion;
 - (void)stop;
+- (void)endSession:(void (^)(NSError *error))completion;
 @end
 NS_ASSUME_NONNULL_END
 #endif

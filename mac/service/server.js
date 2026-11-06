@@ -13,12 +13,19 @@ export function createService({
   const server = net.createServer((socket) => {
     sockets.add(socket);
     socket.on("close", () => sockets.delete(socket));
-    let backend;
+    let backend, ending = false;
     const connection = new RPCConnection(socket, {
       log,
       redactAdvertisements,
-      onRequest: (q) => backend.request(q),
-      onClose: () => backend?.close(),
+      onRequest: (q) => {
+        if (ending) return;
+        if (q.method !== "session.end") { backend.request(q); return; }
+        ending = true;
+        Promise.resolve().then(() => backend.close()).then(() => {
+          connection.send({type: "result", id: q.id, result: {}});
+        }).catch(() => socket.destroy());
+      },
+      onClose: () => Promise.resolve(backend?.close()).catch(() => {}),
     });
     const options = { send: (data) => connection.send(data), log, delay };
     backend = backendFactory

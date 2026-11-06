@@ -66,3 +66,9 @@ npm run verify:ios -- --simulator <已启动的模拟器UDID>
 - 当前后端默认 MTU=23，报告最大写入长度 20；没有长写或 MTU 自动协商。无响应写入错误只有诊断日志，没有伪造 didWrite 回调。
 - 每个 central 拥有一个独立 RPC 会话；没有承诺跨 central 的全局 peripheral 身份与共享连接语义。
 - 若 SDK 没有 arm64-simulator 二进制，它仍不能加载；本库不解决该问题。Uwant 模拟器通用 BLE 入口已接入测试；真实涂鸦业务仍未验证。
+
+## 运行时选择后端
+
+宿主 App 可在集成层调用 `BWSimulatorBLESetPort`，配置后续创建的 CBCentralManager；既有会话保留创建时的端口。切换前先停止使用旧对象、清空 delegate，再调用 `BWSimulatorBLEEndSession(manager, completion)` 等待后台清理确认或错误，最后创建新 central。结束 API 保持旧 manager 存活到回调，以免析构提前取消确认。完成回调在主队列。CoreBluetooth 业务不需要导入桥接库。
+
+这些 API 仅在 Simulator Debug 生效，真机/Release 不改变原生蓝牙。BLEExplorer 已使用分段控件实现切换和选择持久化，测试启动仍可显式用环境变量覆盖初始端口。

@@ -4,9 +4,9 @@ import net from "node:net";
 import { once } from "node:events";
 import { createService } from "../../mac/service/server.js";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function setup(t) {
+async function setup(t, options = {}) {
   const entries = [],
-    server = createService({ log: (e) => entries.push(e) });
+    server = createService({ log: (e) => entries.push(e), ...options });
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   t.after(() => server.shutdown());
@@ -208,4 +208,32 @@ test("service shutdown closes active TCP clients and cancels pending notificatio
   await server.shutdown();
   await closed;
   assert.ok(c.socket.destroyed);
+});
+
+test('session.end acknowledges cleanup and stops old mock notifications', async t => {
+  const {client} = await setup(t);
+  const c = await client();
+  await c.request('scan.start', {scanId: 'old'});
+  await c.request('session.end');
+  const count = c.events.length;
+  await sleep(100);
+  assert.equal(c.events.length, count);
+});
+
+
+test('session.end waits for asynchronous backend cleanup before acknowledgement', async t => {
+  let release, started = false;
+  const closing = new Promise(resolve => { release = resolve; });
+  const {client} = await setup(t, {backendFactory: () => ({
+    request() { throw Error('Unexpected forwarding'); },
+    close() { started = true; return closing; }
+  })});
+  const c = await client();
+  let acknowledged = false;
+  const end = c.request('session.end').then(() => { acknowledged = true; });
+  await sleep(25);
+  assert.equal(started, true);
+  assert.equal(acknowledged, false);
+  release(); await end;
+  assert.equal(acknowledged, true);
 });

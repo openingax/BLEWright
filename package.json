@@ -15,7 +15,14 @@
     "build:ios": "python3 tests/ios/build_probe.py",
     "verify:ios": "python3 tests/e2e/verify_ios.py",
     "check:ios-protocol": "python3 ios/tools/generate_protocol.py --check",
-    "serve:office": "BLEWRIGHT_BACKEND=esp32-scan BLEWRIGHT_PORT=8766 node mac/service/main.js"
+    "serve:office": "BLEWRIGHT_BACKEND=esp32-scan BLEWRIGHT_PORT=8766 node mac/service/main.js",
+    "build:explorer": "python3 android/explorer/build.py",
+    "explorer:mock": ".venv/bin/python android/explorer/run_mock.py",
+    "verify:explorer": ".venv/bin/python tests/e2e/verify_explorer.py",
+    "verify:explorer:edges": ".venv/bin/python tests/e2e/verify_explorer_edges.py",
+    "explorer:workstation": ".venv/bin/python android/explorer/run_workstation.py",
+    "test:explorer:filters": "python3 tests/android/test_explorer_filters.py",
+    "verify:explorer:filters": ".venv/bin/python tests/e2e/verify_explorer_filters.py"
   },
   "devDependencies": {
     "buffer": "6.0.3",

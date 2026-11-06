@@ -1,6 +1,6 @@
 # BLEWright
 
-在模拟器里保留 App 的原生 BLE 调用，通过 Mac 服务使用统一的 BLE 后端。当前已实现 Android 接管与 Mac 模拟后端；iOS、ESP32-S3 尚未实现。
+在模拟器里保留 App 的原生 BLE 调用，通过 Mac 服务使用统一的 BLE 后端。当前已实现 Android / iOS 接管与 Mac 模拟后端；ESP32-S3 固件原型已独立通过实板验证，尚未接入 Mac 硬件后端。
 
 ## 仓库布局与职责
 
@@ -12,8 +12,8 @@ BLEWright/
 ├── android/                  Android SimulatorBLE
 │   ├── simulatorble/         Frida Hook、原生对象、平台回调适配
 │   └── launcher/             Mac 上运行的 Android 注入工具和消息转发器
-├── ios/                      iOS 接入规划（尚无实现）
-├── firmware/                 ESP32-S3 固件规划（尚无实现）
+├── ios/                      iOS SimulatorBLE、RPC 传输和本地 Swift Package
+├── firmware/                 ESP32-S3 固件、USB 协议和独立硬件验证
 ├── protocol/                 RPC v1 约定与跨语言共用常量
 ├── tests/
 │   ├── unit/                 后端状态测试
@@ -39,6 +39,8 @@ Android App / SDK 的原生 BLE API
     → mac/backends/mock（模拟设备、GATT 值、连接和订阅）
 ```
 
+iOS 原生 CoreBluetooth 调用通过 SimulatorBLE 直接连接同一 TCP 服务，不依赖 Frida。
+
 Android 当前通过 Frida 和启动器转发，不是 App 自己建立 TCP 连接，也不需要新增网络权限。Mac 服务是命令行服务，尚无图形界面。
 
 职责边界：
@@ -57,8 +59,8 @@ Android 当前通过 Frida 和启动器转发，不是 App 自己建立 TCP 连�
 
 1. 继续巩固当前 RPC 与 Android 支持范围，先根据实际 SDK 调用补齐接口。
 2. 在接入真实硬件前，从 `mac/service/server.js` 提取独立的后端调用接口。目前它仍包含模拟 GATT 操作的调度，不能误认为已有完整可插拔硬件层。
-3. 在 `firmware/` 实现 S3 的 BLE Central / GATT Client 与 USB 协议；Mac 增加硬件后端，保留现有 RPC 及平台回调。
-4. 在 `ios/` 实现 CoreBluetooth 兼容层，复用相同服务和协议。先验证可在 Simulator 加载的 SDK，不能用 Hook 解决缺失的模拟器二进制。
+3. `firmware/` 已实现 S3 的 BLE Central / GATT Client 与 USB 协议并独立实测；下一步让 Mac 增加硬件后端，保留现有 RPC 及平台回调。
+4. iOS 兼容层已通过独立模拟器探针；继续验证实际可在 Simulator 加载的设备 SDK，不能用 Hook 解决缺失的模拟器二进制。
 5. Mac GUI 只作为服务的控制与观察界面，不另写一套 BLE 逻辑。
 
 各端的具体边界见 [mac](mac/README.md)、[android](android/README.md)、[ios](ios/README.md)、[firmware](firmware/README.md)、[protocol](protocol/README.md)、[tests](tests/README.md)。
@@ -101,8 +103,21 @@ npm run verify:android -- --serial emulator-5554
 
 具体 Frida 安装和宿主安装步骤见 [Android 说明](android/README.md)。
 
+iOS 独立构建与回归（需要 Xcode / XcodeGen 和已选择的 Simulator）：
+
+```sh
+npm run build:ios -- --simulator <UDID>
+npm run verify:ios -- --simulator <已启动的UDID>
+```
+
+iOS 的集成方式、实验性运行时限制见 [iOS 说明](ios/README.md)。
+
 ## 验证与限制
 
 已有 Android 15 / API 35、arm64 的实际运行证据：扫描、连接、服务发现、新旧读写与通知回调、指定 Handler、取消，以及 RPC 服务终止/超时/缺失场景。12 项状态与 TCP 测试已通过。测试入口和证据见 [tests](tests/README.md)。
 
-当前不支持 autoConnect、Peripheral、经典蓝牙、PendingIntent/批量扫描、旧 startLeScan、可靠写入、PHY、配对和后台恢复。只测试一个通用模拟外设；不代表 Uwant App / 涂鸦配网、任意 Android 版本或真实无线链路已经兼容。
+iOS 27.1 模拟器上的 CoreBluetooth 正常/故障流程也已实测通过，见 [iOS 实测](tests/records/2026-11-06-ios.md)。
+
+Android 当前不支持 autoConnect、Peripheral、经典蓝牙、PendingIntent/批量扫描、旧 startLeScan、可靠写入、PHY、配对和后台恢复。只测试一个通用模拟外设；不代表 Uwant App / 涂鸦配网、任意 Android 版本或真实无线链路已经兼容。
+
+ESP32 独立实板验证见 [固件记录](firmware/verification/2026-11-06.md)。目前尚未验证 iOS/Android → Mac RPC → ESP32 的整条硬件链路。

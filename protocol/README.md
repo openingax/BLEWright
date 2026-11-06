@@ -43,4 +43,4 @@ services 树包括服务 id/uuid/type，特征 id/uuid/properties/permissions，
 - 服务发现的属性和值来自后端；App 业务层的数据解析不属于本协议。
 - RPC 版本不兼容时拒绝连接。新增硬件能力需要明确 capability/错误语义后再扩展，不能让不同端自行解释。
 - `constants.json` 不是完整 schema 或代码生成器；当前请求校验在服务端实现。未来接口扩大时再增加 schema 和生成代码。
-- ESP32 USB 协议尚未定义，不把当前 RPC 文档假定为固件传输规范。
+- ESP32 USB 协议独立定义在 [firmware/USB_PROTOCOL.md](../firmware/USB_PROTOCOL.md)，与本 RPC 不同；Mac 硬件适配层尚未接入，不把 TCP 帧直接发给固件。

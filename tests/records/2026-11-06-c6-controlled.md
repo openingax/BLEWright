@@ -22,7 +22,7 @@ C6 刷入 FFF0 / FFF1 测试外设，原 Flash 已完整备份，未写 eFuse。
 
 ## 已执行验证
 
-- BLEExplorer 最终 Debug 编译通过，9 项单元/集成与 1 项 mock UI 回归通过（0 failures）。
+- BLEExplorer 最终 Debug 编译通过，9 项单元/集成与 1 项 mock UI 回归通过（0 failures / 0 skipped）。结果包：`../BLEExplorer/dist/c6-final-mock-regression.xcresult`。测试后的 simctl diagnose 收集停滞，停止该额外收集后 xcodebuild 正常退出 0；结果包可读取且汇总为 Passed，10/10。
 - Android agent 打包通过；本轮新增远端断开分支尚未在 Android 端到端触发。
 - Node 26/26 PASS；Python 受控引擎与扫描 worker 8/8 PASS；C6 身份 6/6 PASS。
 - C6 固件构建、烧录、独立实板验证通过，见 firmware/fixtures/esp32c6/verification/2026-11-06.md。

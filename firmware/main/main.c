@@ -296,8 +296,13 @@ static void execute(cJSON *q) {
   if (!strcmp(op, "hello")) {
     last_command_us = esp_timer_get_time();
     cJSON *o = result(id, 0);
-    cJSON_AddStringToObject(o, "firmware", "blewright-s3/0.1");
+    cJSON_AddStringToObject(o, "firmware", "blewright-s3/0.2");
     cJSON_AddBoolToObject(o, "ready", ready);
+    cJSON_AddBoolToObject(o, "connected",
+                          connection != BLE_HS_CONN_HANDLE_NONE);
+    cJSON_AddBoolToObject(o, "connecting", connecting);
+    cJSON_AddBoolToObject(o, "scanning", scanning);
+    cJSON_AddBoolToObject(o, "passiveScanSupported", true);
     cJSON_AddNumberToObject(o, "maxPayload", BW_MAX_PAYLOAD);
     cJSON_AddNumberToObject(o, "droppedFrames", tx_dropped);
     cJSON_AddNumberToObject(o, "lastId", last_id);
@@ -330,15 +335,24 @@ static void execute(cJSON *q) {
       reject(id, "BUSY");
       return;
     }
+    cJSON *passive = cJSON_GetObjectItemCaseSensitive(p, "passive");
+    if (passive && !cJSON_IsBool(passive)) {
+      reject(id, "INVALID_ARGUMENT");
+      return;
+    }
     struct ble_gap_disc_params config = {0};
-    config.passive = 0;
+    // Omitted means active for backwards compatibility; true sends no scan
+    // requests.
+    config.passive = cJSON_IsTrue(passive) ? 1 : 0;
     config.itvl = 0x30;
     config.window = 0x30;
     config.filter_duplicates = 1;
     scan_id = id;
     int rc = ble_gap_disc(own_address_type, 10000, &config, gap_callback, NULL);
     scanning = rc == 0;
-    respond(id, rc);
+    cJSON *o = result(id, rc);
+    cJSON_AddBoolToObject(o, "passive", config.passive != 0);
+    send_json(o);
     return;
   }
   if (!strcmp(op, "scan.stop")) {

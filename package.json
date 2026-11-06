@@ -13,7 +13,8 @@
     "verify:android": ".venv/bin/python tests/e2e/verify_rpc.py",
     "build:ios": "python3 tests/ios/build_probe.py",
     "verify:ios": "python3 tests/e2e/verify_ios.py",
-    "check:ios-protocol": "python3 ios/tools/generate_protocol.py --check"
+    "check:ios-protocol": "python3 ios/tools/generate_protocol.py --check",
+    "serve:office": "BLEWRIGHT_BACKEND=esp32-scan BLEWRIGHT_PORT=8766 node mac/service/main.js"
   },
   "devDependencies": {
     "buffer": "6.0.3",

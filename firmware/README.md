@@ -7,6 +7,7 @@
 - `main/main.c`：ESP-IDF + NimBLE Central / GATT Client，单连接，所有命令与 BLE 状态在 NimBLE 主机事件队列上处理。
 - `main/wire.c` / `wire.h`：有界长度 + CRC32 串口帧，不依赖 ESP-IDF，可在 Mac 编译测试。
 - `tools/serial_client.py`：串口协议客户端，不重试写入。
+- `tools/verify_passive_scan.py`：仅发送 hello / scan.start(passive=true) / scan.stop，校验前后未连接；只输出帧数和临时地址身份数量，不输出设备名称、地址或原始广播。
 - `tools/verify_hardware.py`：仅连接名为 BLEWright-HW 的自建测试外设，验证真实无线链路。
 - `tools/PeripheralFixture.swift`：独立 Mac CoreBluetooth 测试外设。不是 Mac RPC 模拟后端。
 - `tests/test_wire.py`：C/Python 双向编解码、损坏帧、分片输入等测试。
@@ -30,7 +31,21 @@ idf.py -C firmware -p /dev/cu.usbmodem2021401 flash
 
 串口路径必须按实际开发板确认。本次是 USB JTAG/serial 303A:1001、ESP32-S3 rev0.2、16MB Flash、8MB PSRAM，MAC 28:84:85:5c:98:8c。烧录仅覆盖 bootloader、分区表、应用区，没有改 eFuse 或擦整片 Flash；不会在 NVS 初始化错误时擅自擦除 NVS。
 
-## 独立实板验证
+## 只监听真实广播（不连接设备）
+
+固件 0.2 已支持显式被动扫描。此流程不启动 Mac 测试外设，也不运行旧的连接探针：
+
+```sh
+source "$HOME/esp/esp-idf/export.sh"
+python firmware/tests/test_passive_scan.py
+python firmware/tools/verify_passive_scan.py --port /dev/cu.usbmodem2021401 --seconds 10
+```
+
+工具只检查 hello 并启动 passive=true 扫描、停止扫描；已连接/正在连接、固件缺少被动扫描能力或扫描模式未被确认时直接失败，不发送任何 connect、cancel、disconnect、read、write 或订阅命令。输出仅为聚合计数；临时 BLE 地址可能轮换，地址身份数量不等于物理设备数量。
+
+不要使用 `serial_client.py --scan` 做禁止主动扫描的验收，它为兼容旧流程保留默认主动扫描。不要使用下面的旧完整链路验证命令，除非另有明确允许连接自建外设的授权。
+
+## 独立实板验证（会连接自建外设，仅在允许连接时使用）
 
 在仓库根目录执行（使用 IDF Python 环境，内含 pyserial；其他环境可安装 tools/requirements.txt）：
 

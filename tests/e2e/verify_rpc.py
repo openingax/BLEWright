@@ -29,7 +29,7 @@ def pump(stream, messages, path):
 def run_case(serial, name, fault=None):
     service_queue, client_queue = queue.Queue(), queue.Queue()
     service = subprocess.Popen(['node', 'mac/service/main.js'], cwd=ROOT,
-                               env={**os.environ, 'BLEWRIGHT_PORT': '0'},
+                               env={**os.environ, 'BLEWRIGHT_PORT': '0', 'BLEWRIGHT_BACKEND': 'mock'},
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     service_thread = threading.Thread(target=pump, args=(service.stdout, service_queue, OUT / f'{name}-service.jsonl'), daemon=True)
     service_thread.start()

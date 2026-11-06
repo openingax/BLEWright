@@ -171,6 +171,13 @@ static BOOL BWMatches(CBUUID *uuid, NSArray *filter) {
             }
             i += n + 1;
         }
+        // Hardware backends normalize 16/32/128-bit UUIDs and merge scan responses.
+        // Keep raw-AD fallback above for existing v1 mock peers.
+        if ([device[@"serviceUUIDs"] isKindOfClass:NSArray.class]) {
+            [uuids removeAllObjects];
+            for (NSString *value in device[@"serviceUUIDs"])
+                [uuids addObject:[CBUUID UUIDWithString:value]];
+        }
         if (_scanFilter) {
             BOOL match = NO;
             for (CBUUID *u in uuids)
@@ -179,18 +186,31 @@ static BOOL BWMatches(CBUUID *uuid, NSArray *filter) {
             if (!match)
                 return;
         }
-        NSString *address = device[@"address"];
+        NSString *address = device[@"identity"] ?: device[@"address"];
         BWPeripheral *p = _known[address];
         if (!p) {
             p = [[BWPeripheral alloc] initBWWithAddress:address name:device[@"name"]];
             p.owner = self;
+            p.address = device[@"address"];
             _known[address] = p;
         }
-        NSDictionary *ad = @{
-            CBAdvertisementDataLocalNameKey : device[@"name"] ?: @"",
+        if ([device[@"name"] length])
+            p.bwName = device[@"name"];
+        NSMutableDictionary *ad = [@{
             CBAdvertisementDataServiceUUIDsKey : uuids,
-            CBAdvertisementDataIsConnectable : @YES
-        };
+            CBAdvertisementDataIsConnectable : device[@"connectable"] ?: @YES
+        } mutableCopy];
+        if ([device[@"name"] length])
+            ad[CBAdvertisementDataLocalNameKey] = device[@"name"];
+        if (device[@"manufacturerData"])
+            ad[CBAdvertisementDataManufacturerDataKey] = BWData(device[@"manufacturerData"]);
+        if (device[@"txPower"])
+            ad[CBAdvertisementDataTxPowerLevelKey] = device[@"txPower"];
+        NSMutableDictionary *serviceData = [NSMutableDictionary dictionary];
+        for (NSString *uuid in device[@"serviceData"])
+            serviceData[[CBUUID UUIDWithString:uuid]] = BWData(device[@"serviceData"][uuid]);
+        if (serviceData.count)
+            ad[CBAdvertisementDataServiceDataKey] = serviceData;
         dispatch_async(_callbackQueue, ^{
           if (!self.scanning || ![token isEqual:self.scanID])
               return;

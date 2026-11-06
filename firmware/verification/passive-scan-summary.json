@@ -1,0 +1,11 @@
+{
+  "result": "PASS",
+  "mode": "passive",
+  "seconds": 10.0,
+  "advertisementFrames": 277,
+  "observedAddressIdentities": 127,
+  "connectedBefore": false,
+  "connectedAfter": false,
+  "connectionGenerationUnchanged": true,
+  "droppedFrames": 0
+}

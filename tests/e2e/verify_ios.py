@@ -14,7 +14,7 @@ def case(udid,out,name,mode='normal',fault=None,unavailable=False):
   if unavailable:
    reserved=socket.socket();reserved.bind(('127.0.0.1',0));port=reserved.getsockname()[1]
   else:
-   service=subprocess.Popen(['node','mac/service/main.js'],cwd=ROOT,env={**os.environ,'BLEWRIGHT_PORT':'0'},stdout=service_log,stderr=subprocess.STDOUT)
+   service=subprocess.Popen(['node','mac/service/main.js'],cwd=ROOT,env={**os.environ,'BLEWRIGHT_PORT':'0','BLEWRIGHT_BACKEND':'mock'},stdout=service_log,stderr=subprocess.STDOUT)
    deadline=time.monotonic()+5
    while time.monotonic()<deadline:
     lines=(out/f'{name}-service.jsonl').read_text().splitlines()

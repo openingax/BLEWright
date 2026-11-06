@@ -1,0 +1,8 @@
+{
+  "version": "0.4.1",
+  "build": "6",
+  "privateRepository": "openingax/BLEWright",
+  "publicRepository": "openingax/BLEWright-Releases",
+  "publicKey": "uMfueE53bR/xMYliFVp1/HGbrxORUClmItiuinJT7eY=",
+  "keyAccount": "dev.blewright.mac"
+}

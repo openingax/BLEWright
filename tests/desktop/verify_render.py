@@ -8,7 +8,9 @@ harness = r'''
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 let d = AppDelegate()
-d.makeWindow(); d.makeMenu()
+d.makeWindow(); d.makeMenu(); d.makeMainMenu()
+assert(d.updateMenuItems.count == 2)
+assert(d.updateMenuItems.allSatisfy { $0.title == "检查更新…" && $0.target === d.updaterController })
 let names = ["waiting":"等待 ESP32-S3 接入", "starting":"正在握手…", "ready":"服务已就绪", "stopped":"服务已停止", "error":"服务异常", "flashing":"正在刷写固件…", "restarting":"正在重启 S3…"]
 var count = 0
 for appearance in [NSAppearance.Name.aqua, .darkAqua] {
@@ -71,5 +73,5 @@ with tempfile.TemporaryDirectory(prefix='blewright-render-') as tmp:
     entry = Path(tmp) / 'main.swift'
     entry.write_text(source + harness)
     binary = Path(tmp) / 'verify'
-    subprocess.run(['xcrun','swiftc','-swift-version','5',str(entry),str(root/'mac/desktop/Design.swift'),'-framework','AppKit','-o',str(binary)],check=True)
+    subprocess.run(['xcrun','swiftc','-swift-version','5',str(entry),str(root/'mac/desktop/Design.swift'),'-framework','AppKit','-F',str(root/'dist/sparkle'),'-framework','Sparkle','-Xlinker','-rpath','-Xlinker',str(root/'dist/sparkle'),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)

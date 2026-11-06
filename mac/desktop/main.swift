@@ -1,4 +1,7 @@
 import AppKit
+#if canImport(Sparkle)
+import Sparkle
+#endif
 import UniformTypeIdentifiers
 import Darwin
 
@@ -71,6 +74,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var menuStart: NSMenuItem!
     var menuStop: NSMenuItem!
     var menuRestart: NSMenuItem!
+    #if canImport(Sparkle)
+    let updaterController = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil)
+    var updateObservation: NSKeyValueObservation?
+    var updateMenuItems: [NSMenuItem] = []
+
+    func addUpdateItem(to menu: NSMenu) {
+        let item = NSMenuItem(title: "检查更新…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "")
+        item.target = updaterController
+        item.isEnabled = updaterController.updater.canCheckForUpdates
+        updateMenuItems.append(item); menu.addItem(item)
+    }
+    #endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let existing = NSRunningApplication.runningApplications(withBundleIdentifier: "dev.blewright.mac").first(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }) {
@@ -78,6 +93,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         NSApp.setActivationPolicy(.accessory)
         makeWindow(); makeMenu(); makeMainMenu(); refresh()
+        #if canImport(Sparkle)
+        updateObservation = updaterController.updater.observe(\.canCheckForUpdates, options: [.initial, .new]) { [weak self] updater, _ in
+            self?.updateMenuItems.forEach { $0.isEnabled = updater.canCheckForUpdates }
+        }
+        updaterController.startUpdater()
+        #endif
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.refresh() }
         if !CommandLine.arguments.contains("--background") { showWindow() }
     }
@@ -182,12 +203,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         for item in [menuStart!, menuStop!, menuRestart!] { item.target = self; menu.addItem(item) }
         menu.addItem(.separator())
         let quit = NSMenuItem(title: "退出界面（服务继续运行）", action: #selector(quitUI), keyEquivalent: "q"); quit.target = self; menu.addItem(quit)
+        #if canImport(Sparkle)
+        addUpdateItem(to: menu)
+        #endif
         statusItem.menu = menu
     }
     func makeMainMenu() {
         let bar = NSMenu()
         let appItem = NSMenuItem(); let appMenu = NSMenu(title: "BLEWright")
         let quit = NSMenuItem(title: "退出 BLEWright 界面", action: #selector(quitUI), keyEquivalent: "q"); quit.target = self
+        #if canImport(Sparkle)
+        addUpdateItem(to: appMenu)
+        appMenu.addItem(.separator())
+        #endif
         appMenu.addItem(quit); appItem.submenu = appMenu; bar.addItem(appItem)
         let editItem = NSMenuItem(); let edit = NSMenu(title: "编辑")
         edit.addItem(NSMenuItem(title: "复制", action: #selector(NSText.copy(_:)), keyEquivalent: "c"))

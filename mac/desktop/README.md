@@ -56,3 +56,34 @@ xcrun stapler validate dist/BLEWright-0.4.0-arm64-signed.pkg
 ```
 
 仅有 codesign / pkgutil 签名验证成功，不能写成“已公证”或“已在所有用户登录实测”。
+
+## GitHub 在线更新与发布
+
+- 私有源码与分发备份：`openingax/BLEWright`。
+- 公开下载：`openingax/BLEWright-Releases`。这里只提交下载说明，不推送源码或源码历史。
+- 版本、递增构建号、仓库和更新公钥由 `mac/packaging/release.json` 管理。每次发布必须同时递增版本与构建号；服务版本独立于桌面安装包版本。
+- Sparkle 固定为 2.10.1，构建前验证官方归档 SHA-256。菜单提供“检查更新…”，默认启用定期检查，安装由用户确认并授权；不自动烧写固件。
+- PKG 和 appcast 都使用 Ed25519 签名；私钥只保存在当前用户钥匙串的 `dev.blewright.mac` 账号中，不提交仓库。应自行安全备份钥匙串：PKG 更新不能依靠 Developer ID 替代丢失的更新签名密钥。
+- 构建只带运行所需的服务、后端和协议资源，不附带 Swift UI 源码、manager 开发源码和打包脚本。运行所需 JS/Python 仍可提取；私有源码仓库不等于二进制防逆向。
+
+发布流程：
+
+1. 修改 `release.json` 和对应的 `mac/packaging/release-notes/<版本>.txt`，运行构建与测试。
+2. 提交本次改动并推送私有仓库 `main`。公开仓库保持独立历史。
+3. 使用本机钥匙串公证配置提交签名 PKG：
+
+```sh
+xcrun notarytool submit dist/BLEWright-0.4.1-arm64-signed.pkg --keychain-profile BLEWright-notary --wait
+xcrun stapler staple dist/BLEWright-0.4.1-arm64-signed.pkg
+xcrun stapler validate dist/BLEWright-0.4.1-arm64-signed.pkg
+```
+
+4. 生成更新信息并把同一份 PKG、签名 appcast、SHA256SUMS 上传到两边的 Release 草稿：
+
+```sh
+.venv/bin/python mac/packaging/release.py --notes mac/packaging/release-notes/0.4.1.txt
+```
+
+5. 安装及更新验证后，加入 `--publish` 正式发布。脚本要求公证票据有效，先发布私有备份，最后公开版本；公开仓库的 `releases/latest/download/appcast.xml` 是 App 的更新源。草稿不对普通用户可见。已发布版本不可由本脚本覆盖；失败时应检查两边状态后恢复，不能重写已发布安装包。
+
+公证会改变安装包的票据，因此应在装订票据后重新生成更新签名和校验值。凭据不要写进脚本、仓库或聊天。首次从 0.4.0 升级需手动安装一次 PKG，此后才具备在线更新入口。

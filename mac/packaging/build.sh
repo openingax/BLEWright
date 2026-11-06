@@ -2,7 +2,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 base="$PWD"
-version=0.4.0
+version=$(.venv/bin/python -c 'import json; print(json.load(open("mac/packaging/release.json"))["version"])')
+bash mac/packaging/prepare-sparkle.sh
 arch=$(uname -m)
 [[ "$arch" == arm64 ]] || { echo '当前包仅支持 Apple Silicon，请在 arm64 Mac 构建'; exit 1; }
 stage="$base/dist/mac-pkg-root"
@@ -20,8 +21,9 @@ rm -rf "$stage"
 app="$stage/Applications/BLEWright.app"
 support="$stage/Library/Application Support/BLEWright"
 mkdir -p "$app/Contents/MacOS" "$support/runtime" "$support/resources" "$stage/Library/LaunchDaemons" "$stage/Library/LaunchAgents"
-xcrun swiftc -swift-version 5 -O -target arm64-apple-macosx13.0 mac/desktop/main.swift mac/desktop/Design.swift -framework AppKit -o "$app/Contents/MacOS/BLEWright"
-mkdir -p "$app/Contents/Resources"
+xcrun swiftc -swift-version 5 -O -target arm64-apple-macosx13.0 mac/desktop/main.swift mac/desktop/Design.swift -framework AppKit -F dist/sparkle -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks -o "$app/Contents/MacOS/BLEWright"
+mkdir -p "$app/Contents/Resources" "$app/Contents/Frameworks"
+ditto dist/sparkle/Sparkle.framework "$app/Contents/Frameworks/Sparkle.framework"
 cp mac/desktop/Resources/AppIcon.icns "$app/Contents/Resources/"
 cat > "$app/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict>
@@ -32,6 +34,17 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 <key>LSMinimumSystemVersion</key><string>13.0</string><key>LSUIElement</key><true/>
 </dict></plist>
 PLIST
+.venv/bin/python - "$app/Contents/Info.plist" <<'PYINFO'
+import json, plistlib, sys
+from pathlib import Path
+release = json.loads(Path('mac/packaging/release.json').read_text())
+p = Path(sys.argv[1]); info = plistlib.loads(p.read_bytes())
+info.update(CFBundleShortVersionString=release['version'], CFBundleVersion=release['build'],
+    SUFeedURL=f"https://github.com/{release['publicRepository']}/releases/latest/download/appcast.xml",
+    SUPublicEDKey=release['publicKey'], SURequireSignedFeed=True, SUVerifyUpdateBeforeExtraction=True,
+    SUEnableAutomaticChecks=True, SUAutomaticallyUpdate=False, SUSendProfileInfo=False)
+p.write_bytes(plistlib.dumps(info))
+PYINFO
 .venv/bin/python -m PyInstaller --noconfirm --clean --onedir --name BLEWrightRuntime \
  --distpath "$build/frozen" --workpath "$build/pyinstaller" --specpath "$build" \
  --paths mac/manager --hidden-import serial --hidden-import serial.tools.list_ports \
@@ -40,7 +53,9 @@ cp -R "$build/frozen/BLEWrightRuntime/." "$support/runtime/"
 tar -xzf "$build/$archive" -C "$build"
 cp "$build/node-$node_version-darwin-arm64/bin/node" "$support/runtime/node"
 cp "$build/node-$node_version-darwin-arm64/LICENSE" "$support/runtime/NODE-LICENSE"
-cp -R mac "$support/resources/"
+mkdir -p "$support/resources/mac"
+cp -R mac/service mac/backends "$support/resources/mac/"
+find "$support/resources/mac" -name '*.md' -delete
 cp -R protocol "$support/resources/"
 mkdir -p "$support/resources/firmware/tools" "$support/resources/firmware/release"
 cp firmware/tools/serial_client.py "$support/resources/firmware/tools/"
@@ -58,7 +73,13 @@ cp mac/packaging/dev.blewright.daemon.plist "$stage/Library/LaunchDaemons/"
 cp mac/packaging/dev.blewright.agent.plist "$stage/Library/LaunchAgents/"
 # Developer ID identities can be supplied for distribution; otherwise make a local ad-hoc build.
 identity="${APPLICATION_IDENTITY:--}"
-codesign --force --deep --options runtime --sign "$identity" "$app"
+sparkle="$app/Contents/Frameworks/Sparkle.framework/Versions/B"
+for helper in "$sparkle/XPCServices/Downloader.xpc" "$sparkle/XPCServices/Installer.xpc" "$sparkle/Autoupdate" "$sparkle/Updater.app"; do
+  codesign --force --options runtime --timestamp --sign "$identity" "$helper"
+done
+codesign --force --options runtime --timestamp --sign "$identity" "$app/Contents/Frameworks/Sparkle.framework"
+codesign --force --options runtime --timestamp --sign "$identity" "$app"
+codesign --verify --deep --strict "$app"
 codesign --force --options runtime --entitlements mac/packaging/node.entitlements --sign "$identity" "$support/runtime/node"
 # PyInstaller signs nested runtime libraries; signing with a Developer ID requires rebuilding with that identity.
 if [[ "$identity" != - ]]; then

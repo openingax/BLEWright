@@ -177,7 +177,11 @@ void BWSimulatorBLESetPort(uint16_t port) { @synchronized(BWRPC.class) { BWConfi
                          if (error)
                              [weak fail:@"RPC write failed"];
                        });
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, BW_RPC_TIMEOUT_MS * NSEC_PER_MSEC), _queue, ^{
+    int64_t timeout = [method isEqualToString:@"connect"] ? BW_RPC_CONNECT_TIMEOUT_MS
+        : [method isEqualToString:@"discover"] ? BW_RPC_DISCOVER_TIMEOUT_MS
+        : [method isEqualToString:@"session.end"] ? BW_RPC_END_SESSION_TIMEOUT_MS
+        : BW_RPC_TIMEOUT_MS;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, timeout * NSEC_PER_MSEC), _queue, ^{
       if (weak.pending[ident])
           [weak fail:[@"RPC timeout: " stringByAppendingString:method]];
     });

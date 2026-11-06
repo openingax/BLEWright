@@ -43,10 +43,25 @@ services 树包括服务 id/uuid/type，特征 id/uuid/properties/permissions，
 - 服务发现的属性和值来自后端；App 业务层的数据解析不属于本协议。
 - RPC 版本不兼容时拒绝连接。新增硬件能力需要明确 capability/错误语义后再扩展，不能让不同端自行解释。
 - `constants.json` 不是完整 schema 或代码生成器；当前请求校验在服务端实现。未来接口扩大时再增加 schema 和生成代码。
-- ESP32 USB 协议独立定义在 [firmware/USB_PROTOCOL.md](../firmware/USB_PROTOCOL.md)，与本 RPC 不同；Mac 硬件适配层尚未接入，不把 TCP 帧直接发给固件。
+- ESP32 USB 协议独立定义在 [firmware/USB_PROTOCOL.md](../firmware/USB_PROTOCOL.md)，与本 RPC 不同；Mac 硬件适配层负责转换，不能把 TCP 帧直接发给固件。
 
 ## 广播元数据扩展（v1 向后兼容）
 
 硬件后端的 device 可额外提供 identity（含地址类型的稳定会话标识）、serviceUUIDs、manufacturerData、serviceData、txPower、connectable。address 保留标准地址格式；iOS 用 identity 构建不透明 peripheral 标识，旧 mock 没有此字段时继续使用 address。
 
 这些字段是广播解析结果，不表示已连接或已发现 GATT。只读后端对任何连接/GATT请求返回 SCAN_ONLY，即使客户端绕过了按钮禁用也不会到达 USB。
+
+## 版本发现（服务 0.3 起）
+
+RPC 主版本仍为 1。hello 在既有字段外增加 `serverVersion`、`protocolVersion`、`minimumProtocolVersion`、`backend`、`capabilities`。客户端忽略未知可选字段；不兼容的主版本必须拒绝。新增 `server.info` 请求返回同样的版本与能力，不触发蓝牙操作。软件版本更新不代表 RPC 主版本变化。管理 API 的 apiVersion 与此协议独立。
+
+## 通用硬件模式（服务 0.4 起）
+
+backend=esp32、targetPolicy=any-device；同一 RPC v1 对 iOS、Android 和其它客户端提供相同硬件能力。没有目标白名单，名称和 UUID 仅是客户端选择条件。
+
+- scan.start 的可选 passive 为 Bool，通用模式默认 false；旧只读和受控测试模式仍强制 true。每个自动续扫周期保持选定模式。
+- 广播 device 新增 addressType（0 public / 1 random）；identity 仍保留原始地址类型。connect 可显式提供 addressType。旧客户端省略时由扫描缓存解析，未知/歧义报 ADDRESS_TYPE_REQUIRED。
+- hello/server.info 新增 scanModes、limits 和 unsupportedCapabilities。当前支持的操作共用已有 GATT 语义；没有自动配对、绑定、长写或多连接承诺。
+- esp32-scan 与 esp32-controlled 保留兼容；限制是用户选定的模式，不因 Android/iOS 平台变化。测试客户端自行限定自动操作目标。
+
+请求预算由 constants.json 统一定义，hello/server.info 同步公布 requestTimeoutMs（默认 7000）与 requestTimeoutsMs（connect=15000、discover=60000、session.end=15000）。Android 与 iOS 包使用同一配置；服务发现包含多轮真实 GATT 操作，不再套用原有 4 秒总预算。旧客户端仍可连接，但需更新超时策略以支持慢连接和完整服务树。

@@ -65,4 +65,35 @@ class Tests(unittest.TestCase):
     def test_health_reports_dropped_frames_as_unknown_outcome(self):
         self.engine.health()
         with self.assertRaisesRegex(RuntimeError,'DROPPED_FRAMES'):self.result(droppedFrames=1)
+    def test_scan_while_connected_preserves_connection_generation(self):
+        self.connect()
+        self.engine.command({'id':5,'method':'scan.start','params':{'passive':True}})
+        self.result(passive=True)
+        self.assertTrue(self.engine.owned)
+        self.engine.command({'id':6,'method':'rssi','params':{'generation':1}})
+        self.assertEqual(self.board.serial.frames[-1]['op'],'rssi')
+
+class GeneralTests(Tests):
+    def setUp(self):
+        self.board=Board();self.output=[];self.time=0
+        self.engine=module.ControlledEngine(self.board,None,self.output.append,now=lambda:self.time,policy=module.OpenTargetPolicy())
+    def prove(self):
+        self.engine.command({'id':1,'method':'scan.start','params':{'passive':True}})
+        self.assertEqual(self.board.serial.frames[-1]['params'],{'passive':True})
+        self.result(passive=True);self.advertisement()
+    def test_wrong_address_nonce_or_stale_proof_never_reaches_serial_connect(self):
+        # General service accepts any valid selected target, with no fixture proof.
+        self.engine.command({'id':1,'method':'connect','params':{'address':'AA:BB:CC:DD:EE:FF','addressType':1}})
+        self.assertEqual(self.board.serial.frames[-1]['params'],{'address':'AA:BB:CC:DD:EE:FF','addressType':1})
+    def test_active_and_passive_scan_confirmation(self):
+        self.engine.command({'id':1,'method':'scan.start','params':{}})
+        self.assertEqual(self.board.serial.frames[-1]['params'],{'passive':False})
+        self.result(passive=False)
+        self.engine.command({'id':2,'method':'scan.stop'});self.result()
+        self.engine.command({'id':3,'method':'scan.start','params':{'passive':True}})
+        with self.assertRaisesRegex(RuntimeError,'SCAN_MODE_NOT_CONFIRMED'):self.result(passive=False)
+    def test_invalid_target_never_reaches_usb(self):
+        for params in [{'address':'*','addressType':0},{'address':ALLOW['address']},{'address':ALLOW['address'],'addressType':True}]:
+            self.engine.command({'id':1,'method':'connect','params':params})
+        self.assertEqual(self.board.serial.frames,[])
 if __name__=='__main__':unittest.main()

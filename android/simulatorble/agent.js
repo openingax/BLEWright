@@ -91,7 +91,7 @@ function requestRpc(method, params = {}, done = () => {}) {
   const id = ++nextRequest;
   const timer = setTimeout(
     () => transportLost("RPC timeout: " + method),
-    protocol.requestTimeoutMs,
+    protocol.requestTimeoutsMs?.[method] ?? protocol.requestTimeoutMs,
   );
   pending.set(id, { done, timer });
   send({

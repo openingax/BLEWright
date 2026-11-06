@@ -26,9 +26,33 @@ def manufacturer(data):
         i+=n+1
     return None
 
+class OpenTargetPolicy:
+    def connect(self, params, now):
+        address=params.get('address');kind=params.get('addressType')
+        if not isinstance(address,str) or not re.fullmatch(r'(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}',address):raise ValueError('INVALID_ADDRESS')
+        if type(kind) is not int or kind not in (0,1):raise ValueError('INVALID_ADDRESS_TYPE')
+        return {'address':address.upper(),'addressType':kind}
+    def observe(self, event, now):pass
+    def scan_options(self, params):
+        passive=params.get('passive',False)
+        if type(passive) is not bool:raise ValueError('INVALID_ARGUMENT')
+        return {'passive':passive}
+
+class ExactTargetPolicy(OpenTargetPolicy):
+    def __init__(self,allow):self.allow=validate_allow(allow);self.proof=None
+    def connect(self,params,now):
+        if not isinstance(params.get('address'),str) or params['address'].upper()!=self.allow['address'] or type(params.get('addressType')) is not int or params.get('addressType')!=self.allow['addressType']:raise ValueError('TARGET_NOT_ALLOWED')
+        if self.proof is None or now-self.proof>30:raise ValueError('C6_ADVERTISEMENT_PROOF_REQUIRED')
+        return {'address':self.allow['address'],'addressType':self.allow['addressType']}
+    def observe(self,event,now):
+        if event.get('address','').upper()==self.allow['address'] and event.get('addressType')==self.allow['addressType']:
+            data=manufacturer(event.get('advertising'))
+            if data is not None:self.proof=now if data==[255,255,*self.allow['nonce']] else None
+    def scan_options(self,params):return {'passive':True}
+
 class ControlledEngine:
-    def __init__(self,board,allow,emit,now=time.monotonic):
-        self.allow=validate_allow(allow);self.board=board;self.emit=emit;self.now=now
+    def __init__(self,board,allow,emit,now=time.monotonic,policy=None):
+        self.policy=policy or ExactTargetPolicy(allow);self.board=board;self.emit=emit;self.now=now
         h=board.hello
         if h.get('ready') is not True or h.get('passiveScanSupported') is not True:raise RuntimeError('FIRMWARE_NOT_READY')
         if h.get('connected') or h.get('connecting') or h.get('scanning'):raise RuntimeError('BOARD_ALREADY_IN_USE')
@@ -42,13 +66,14 @@ class ControlledEngine:
         if op not in ALLOWED:return self.error(ident,'UNSUPPORTED')
         if not isinstance(params,dict):return self.error(ident,'INVALID_ARGUMENT')
         if op=='connect':
-            if not isinstance(params.get('address'),str) or params['address'].upper()!=self.allow['address'] or type(params.get('addressType')) is not int or params.get('addressType')!=self.allow['addressType']:return self.error(ident,'TARGET_NOT_ALLOWED')
-            if self.proof is None or self.now()-self.proof>30:return self.error(ident,'C6_ADVERTISEMENT_PROOF_REQUIRED')
+            try:params=self.policy.connect(params,self.now())
+            except ValueError as error:return self.error(ident,str(error))
             if self.owned or self.connecting:return self.error(ident,'BUSY')
-            params={'address':self.allow['address'],'addressType':self.allow['addressType']};self.connecting=True;self.scanning=False
+            self.connecting=True;self.scanning=False
         elif op=='scan.start':
-            if self.owned or self.connecting or self.scanning:return self.error(ident,'BUSY')
-            params={'passive':True}
+            if self.connecting or self.scanning:return self.error(ident,'BUSY')
+            try:params=self.policy.scan_options(params)
+            except ValueError as error:return self.error(ident,str(error))
         elif op=='cancel':
             if not self.connecting:return self.reply(ident,{'status':0,'generation':self.generation})
             params={}
@@ -65,7 +90,7 @@ class ControlledEngine:
         self._send(ident,op,params)
     def _send(self,ident,op,params):
         self.board.sequence+=1;wire_id=self.board.sequence
-        self.pending[wire_id]={'id':ident,'op':op,'generation':self.generation,'events':[],'deadline':self.now()+(11 if op=='connect' else 5)}
+        self.pending[wire_id]={'id':ident,'op':op,'generation':self.generation,'events':[],'params':params,'deadline':self.now()+(11 if op=='connect' else 5)}
         self.counts[op]=self.counts.get(op,0)+1
         self.board.serial.write(encode({'v':1,'id':wire_id,'op':op,'bootId':self.board.boot_id,'generation':self.generation,'params':params}))
     def on_message(self,m):
@@ -81,7 +106,7 @@ class ControlledEngine:
             elif op in GATT and (p['generation']!=self.generation or m.get('generation')!=self.generation):
                 return self.error(p['id'],'STALE_GENERATION')
             if op=='scan.start' and status==0:
-                if m.get('passive') is not True:raise RuntimeError('PASSIVE_SCAN_NOT_CONFIRMED')
+                if m.get('passive') is not p['params']['passive']:raise RuntimeError('SCAN_MODE_NOT_CONFIRMED')
                 self.scanning=True;self.scan_id=m['id']
             if op=='scan.stop' and status==0:self.scanning=False;self.scan_id=None
             result={k:v for k,v in m.items() if k not in ('id','v','bootId','type')}
@@ -93,9 +118,7 @@ class ControlledEngine:
         event=m.get('event')
         if event=='advertisement':
             if not self.scanning or m.get('scanId')!=self.scan_id:return
-            if m.get('address','').upper()==self.allow['address'] and m.get('addressType')==self.allow['addressType']:
-                data=manufacturer(m.get('advertising'))
-                if data is not None:self.proof=self.now() if data==[255,255,*self.allow['nonce']] else None
+            self.policy.observe(m,self.now())
             self.emit({'type':'event','event':m})
         elif event=='scanStopped':
             if self.scanning and m.get('scanId')==self.scan_id:

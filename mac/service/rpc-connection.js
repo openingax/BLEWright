@@ -11,7 +11,7 @@ const protocol = JSON.parse(
 export class RPCConnection {
   constructor(
     socket,
-    { log, onRequest, onClose, redactAdvertisements = false },
+    { log, onRequest, onClose, info = {}, redactAdvertisements = false },
   ) {
     this.socket = socket;
     this.log = log;
@@ -23,7 +23,7 @@ export class RPCConnection {
     this.closed = false;
     this.buffer = "";
     socket.setEncoding("utf8");
-    this.send({ type: "hello", version: protocol.version, sessionId: this.id });
+    this.send({ type: "hello", version: protocol.version, sessionId: this.id, ...info });
     socket.on("data", (chunk) => this.input(chunk));
     socket.on("error", () => {});
     socket.on("close", () => this.close());

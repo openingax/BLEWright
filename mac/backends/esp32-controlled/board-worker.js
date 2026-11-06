@@ -1,13 +1,13 @@
 import { fileURLToPath } from "node:url";
 import { SerialWorker } from "../serial-worker.js";
-import { IdentityGate, validateAllow } from "./identity.js";
+import { IdentityGate, OpenIdentityGate, validateAllow } from "./identity.js";
 export class ControlledWorker extends SerialWorker {
-  constructor({ allow, ...options }) {
-    const normalized = validateAllow(allow);
+  constructor({ allow, general = false, ...options }) {
+    const normalized = general ? null : validateAllow(allow);
     super({
       ...options,
       script: fileURLToPath(new URL("./worker.py", import.meta.url)),
-      scriptArgs: ["--allow-json", JSON.stringify(normalized)],
+      scriptArgs: general ? ["--general"] : ["--allow-json", JSON.stringify(normalized)],
       commandTimeout: 12000,
       closeGraceMs: 4000,
       allowedMethods: [
@@ -26,7 +26,7 @@ export class ControlledWorker extends SerialWorker {
         "rssi",
       ],
     });
-    this.identity = new IdentityGate(normalized);
+    this.identity = general ? new OpenIdentityGate() : new IdentityGate(normalized);
     this.on("boardEvent", (event) => {
       try {
         this.identity.observe(event);

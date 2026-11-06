@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import {
   IdentityGate,
+  OpenIdentityGate,
   validateAllow,
 } from "../../mac/backends/esp32-controlled/identity.js";
 import {
@@ -94,9 +95,9 @@ class Worker extends EventEmitter {
   }
 }
 const next = () => new Promise((r) => setImmediate(r));
-function setup() {
+function makeSetup(general = false) {
   const worker = new Worker(),
-    coordinator = new ControlledCoordinator(worker, { allow }),
+    coordinator = new ControlledCoordinator(worker, general ? { targetPolicy: new OpenIdentityGate() } : { allow }),
     frames = [];
   const session = new ControlledSession({
     coordinator,
@@ -104,6 +105,47 @@ function setup() {
   });
   return { worker, coordinator, session, frames };
 }
+const setup = () => makeSetup();
+test("general backend accepts public/random peers without fixture name or nonce and preserves scan mode", async () => {
+  const x = makeSetup(true);
+  await x.coordinator.handle(x.session, "scan.start", { scanId: "s", passive: false });
+  assert.deepEqual(x.worker.calls[0], { method: "scan.start", params: { passive: false } });
+  const peer = { ...adv, address: "12:34:56:78:9A:BC", addressType: 1, advertising: [2, 1, 6] };
+  x.worker.emit("boardEvent", peer);
+  assert.equal(x.frames[0].device.address, peer.address);
+  assert.equal(x.frames[0].device.addressType, 1);
+  await x.coordinator.handle(x.session, "connect", { connectionId: "c", address: peer.address });
+  assert.deepEqual(x.worker.calls.find(c => c.method === "connect").params, { address: peer.address, addressType: 1 });
+  await x.session.close();
+  const y = makeSetup(true);
+  await y.coordinator.handle(y.session, "connect", { connectionId: "c", address: "12:34:56:78:9A:BD", addressType: 0 });
+  assert.equal(y.worker.calls.filter(c => c.method === "scan.start").length, 0);
+  await y.session.close();
+});
+test("general service requires an unambiguous address type and never guesses public", () => {
+  const gate = new OpenIdentityGate();
+  assert.throws(() => gate.resolve(allow.address), /ADDRESS_TYPE_REQUIRED/);
+  gate.observe(adv);
+  assert.equal(gate.resolve(allow.address).addressType, 0);
+  gate.observe({ ...adv, addressType: 1 });
+  assert.throws(() => gate.resolve(allow.address), /ADDRESS_TYPE_REQUIRED/);
+  assert.equal(gate.resolve(allow.address, 1).addressType, 1);
+  assert.throws(() => gate.resolve("invalid", 0), /INVALID_ADDRESS/);
+  assert.throws(() => gate.scanOptions({ passive: "true" }), /INVALID_ARGUMENT/);
+});
+test("general shared read-only port stays passive and denies GATT while the main port is unrestricted", async () => {
+  const x = makeSetup(true);
+  const office = new ControlledSession({ coordinator: x.coordinator, scanOnly: true, send: () => {} });
+  await x.coordinator.handle(office, "scan.start", { scanId: "s", passive: false });
+  assert.deepEqual(x.worker.calls[0].params, { passive: true });
+  await assert.rejects(x.coordinator.handle(office, "connect", { connectionId: "c", address: allow.address, addressType: 0 }), /SCAN_ONLY/);
+  await office.close();
+  await x.coordinator.handle(x.session, "scan.start", { scanId: "s2", passive: true });
+  x.worker.emit("boardEvent", { event: "scanStopped", scanId: 1 });
+  await next();
+  assert.deepEqual(x.worker.calls.filter(c => c.method === "scan.start").at(-1).params, { passive: true });
+  await x.session.close();
+});
 async function connect(x, id = "c1") {
   x.worker.emit("boardEvent", adv);
   return x.coordinator.handle(x.session, "connect", {
@@ -144,6 +186,16 @@ test("wrong peer or nonce never sends connect to worker", async () => {
     }),
   );
   assert.equal(x.worker.calls.filter((c) => c.method === "connect").length, 0);
+});
+for (const general of [false, true]) {
+const setup = () => makeSetup(general);
+test(`connected session can scan and keep using GATT (${general ? 'general' : 'controlled'})`, async () => {
+  const x = setup();
+  await connect(x);
+  await x.coordinator.handle(x.session, 'scan.start', { scanId: 'connected-scan' });
+  assert.equal((await x.coordinator.handle(x.session, 'rssi', { connectionId: 'c1' })).status, 0);
+  await x.coordinator.handle(x.session, 'scan.stop', { scanId: 'connected-scan' });
+  await x.session.close();
 });
 test("real discovery events become generation-scoped schema and route reads/writes to handles", async () => {
   const x = setup();
@@ -282,6 +334,8 @@ test("NimBLE host errors are not misreported as ATT codes or successful writes",
     assert.equal(result.reason, "synthetic");
   }
 });
+
+}
 
 test('read-only and C6 sessions share one owner; release awaits cleanup before transfer', async () => {
   const x = setup(), frames = [];

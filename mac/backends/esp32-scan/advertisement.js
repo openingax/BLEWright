@@ -67,6 +67,7 @@ export class AdvertisementCache {
     const device = {
       address: event.address.toUpperCase(),
       identity,
+      addressType: event.addressType % 2,
       name,
       completeName: Boolean(old?.completeName || parsed.completeName),
       type: 2,

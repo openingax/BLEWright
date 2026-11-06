@@ -40,10 +40,10 @@ function publicFailure(error) {
 }
 
 export class ControlledCoordinator extends EventEmitter {
-  constructor(worker, { allow, log = () => {} }) {
+  constructor(worker, { allow, targetPolicy, log = () => {} }) {
     super();
     this.worker = worker;
-    this.identity = new IdentityGate(allow);
+    this.identity = targetPolicy ?? new IdentityGate(allow);
     this.log = log;
     this.owner = null;
     this.record = null;
@@ -64,16 +64,17 @@ export class ControlledCoordinator extends EventEmitter {
     this.scanChain = promise.catch(() => {});
     return promise;
   }
-  async startScan(session, scanId) {
+  async startScan(session, scanId, params = {}) {
+    const options = session.scanOnly ? { passive: true } : this.identity.scanOptions(params);
     this.claim(session);
-    if (this.record) throw Error("BUSY");
+    if (this.record && this.record.phase !== "connected") throw Error("BUSY");
     if (this.scan) throw Error("ALREADY_STARTED");
-    const token = { session, scanId, boardScanId: null };
+    const token = { session, scanId, boardScanId: null, options };
     this.scan = token;
     try {
       await this.enqueueScan(async () => {
         if (this.scan !== token) return;
-        const r = check(await this.worker.command("scan.start"));
+        const r = check(await this.worker.command("scan.start", options));
         token.boardScanId = r.scanId;
       });
     } catch (error) {
@@ -96,10 +97,11 @@ export class ControlledCoordinator extends EventEmitter {
     return {};
   }
   async connect(session, p) {
+    const target = this.identity.resolve(p.address, p.addressType);
     try {
       this.identity.assertConnect(
-        p.address,
-        p.addressType ?? this.identity.allow.addressType,
+        target.address,
+        target.addressType,
       );
     } catch (e) {
       if (e.message !== "C6_ADVERTISEMENT_PROOF_REQUIRED") {
@@ -118,6 +120,7 @@ export class ControlledCoordinator extends EventEmitter {
       canceled: false,
       attributes: new Map(),
       notifications: new Set(),
+      target,
       mtu: 23,
     };
     this.record = record;
@@ -129,10 +132,7 @@ export class ControlledCoordinator extends EventEmitter {
       if (record.canceled || session.closed)
         return { status: 133, reason: "CANCELED" };
       this.connectAttempts++;
-      return this.worker.command("connect", {
-        address: this.identity.allow.address,
-        addressType: this.identity.allow.addressType,
-      });
+      return this.worker.command("connect", target);
     })();
     try {
       const result = await record.connectPromise;
@@ -165,7 +165,7 @@ export class ControlledCoordinator extends EventEmitter {
     }
   }
   async ensureProof(record) {
-    const allowed = this.identity.allow;
+    const allowed = record.target;
     try {
       this.identity.assertConnect(allowed.address, allowed.addressType);
       return;
@@ -344,7 +344,7 @@ export class ControlledCoordinator extends EventEmitter {
     if (method === "scan.start" || method === "scan.stop") {
       if (!validID(p.scanId)) throw Error("INVALID_ARGUMENT");
       return method === "scan.start"
-        ? this.startScan(session, p.scanId)
+        ? this.startScan(session, p.scanId, p)
         : this.stopScan(session, p.scanId);
     }
     if (!validID(p.connectionId)) throw Error("INVALID_ARGUMENT");
@@ -416,10 +416,7 @@ export class ControlledCoordinator extends EventEmitter {
     if (e.event === "advertisement") {
       const s = this.scan;
       if (!s || e.scanId !== s.boardScanId) return;
-      if (!s.session.scanOnly) {
-        try { this.identity.assertConnect(e.address, e.addressType); }
-        catch { return; }
-      }
+      if (!s.session.scanOnly && !this.identity.accepts(e)) return;
       const device = this.cache.update(e);
       this.frames++;
       s.session.send({
@@ -434,7 +431,7 @@ export class ControlledCoordinator extends EventEmitter {
       s.boardScanId = null;
       this.enqueueScan(async () => {
         if (this.scan !== s) return;
-        const result = check(await this.worker.command("scan.start"));
+        const result = check(await this.worker.command("scan.start", s.options));
         s.boardScanId = result.scanId;
       }).catch((error) => this.emit("unavailable", error.message));
     } else if (e.event === "notification") {

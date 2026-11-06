@@ -4,12 +4,14 @@ import argparse,json,queue,sys,threading,time
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[3]/'firmware/tools'))
 from serial_client import Board
-from engine import ControlledEngine,validate_allow
+from engine import ControlledEngine,validate_allow,OpenTargetPolicy
 
 def emit(value):print(json.dumps(value,separators=(',',':')),flush=True)
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--port',required=True);p.add_argument('--allow-json',required=True);args=p.parse_args()
-    allow=validate_allow(json.loads(args.allow_json))
+    p=argparse.ArgumentParser();p.add_argument('--port',required=True)
+    policy=p.add_mutually_exclusive_group(required=True)
+    policy.add_argument('--allow-json');policy.add_argument('--general',action='store_true');args=p.parse_args()
+    allow=None if args.general else validate_allow(json.loads(args.allow_json))
     board=Board(args.port);engine=None;commands=queue.Queue(maxsize=64)
     def reader():
         try:
@@ -18,8 +20,8 @@ def main():
                 commands.put(json.loads(line),timeout=1)
         finally:commands.put(None)
     try:
-        engine=ControlledEngine(board,allow,emit)
-        emit({'type':'ready','firmware':board.hello.get('firmware'),'controlled':True,'connected':False})
+        engine=ControlledEngine(board,allow,emit,policy=OpenTargetPolicy() if args.general else None)
+        emit({'type':'ready','firmware':board.hello.get('firmware'),'controlled':not args.general,'connected':False})
         threading.Thread(target=reader,daemon=True).start();last_ping=time.monotonic()
         while True:
             try:q=commands.get_nowait()
@@ -35,7 +37,7 @@ def main():
         if engine:
             try:engine.cleanup()
             except Exception:pass
-            print(json.dumps({'event':'usbCommands','mode':'controlled-c6','counts':engine.counts,'connectedAtEnd':engine.owned,'generation':engine.generation}),file=sys.stderr,flush=True)
+            print(json.dumps({'event':'usbCommands','mode':'general' if args.general else 'controlled-c6','counts':engine.counts,'connectedAtEnd':engine.owned,'generation':engine.generation}),file=sys.stderr,flush=True)
         board.close()
 if __name__=='__main__':
     try:main()

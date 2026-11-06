@@ -1,6 +1,6 @@
 # BLEWright
 
-在模拟器里保留 App 的原生 BLE 调用，通过 Mac 服务使用统一的 BLE 后端。当前已实现 Android / iOS 接管与 Mac 模拟后端；ESP32-S3 固件原型已独立通过实板验证，尚未接入 Mac 硬件后端。
+在模拟器里保留 App 的原生 BLE 调用，通过 Mac 服务使用统一的 BLE 后端。当前已实现 Android / iOS 接管与 Mac 模拟后端；ESP32-S3 固件原型已独立通过实板验证，已接入 Mac 的只读被动扫描后端；连接/GATT 硬件后端仍未实现。
 
 ## 仓库布局与职责
 
@@ -58,8 +58,8 @@ Android 当前通过 Frida 和启动器转发，不是 App 自己建立 TCP 连�
 ## 后续开发顺序
 
 1. 继续巩固当前 RPC 与 Android 支持范围，先根据实际 SDK 调用补齐接口。
-2. 在接入真实硬件前，从 `mac/service/server.js` 提取独立的后端调用接口。目前它仍包含模拟 GATT 操作的调度，不能误认为已有完整可插拔硬件层。
-3. `firmware/` 已实现 S3 的 BLE Central / GATT Client 与 USB 协议并独立实测；下一步让 Mac 增加硬件后端，保留现有 RPC 及平台回调。
+2. 公共 RPCConnection 与会话后端已分离，mock 和 ESP32 只扫描后端共用传输与校验。
+3. `firmware/` 已实现 S3 的 BLE Central / GATT Client 与 USB 协议并独立实测；当前 Mac 已接入只读扫描；下一步在受控外设上补齐连接/GATT，保留现有 RPC 及平台回调。
 4. iOS 兼容层已通过独立模拟器探针；继续验证实际可在 Simulator 加载的设备 SDK，不能用 Hook 解决缺失的模拟器二进制。
 5. Mac GUI 只作为服务的控制与观察界面，不另写一套 BLE 逻辑。
 
@@ -120,4 +120,6 @@ iOS 27.1 模拟器上的 CoreBluetooth 正常/故障流程也已实测通过，�
 
 Android 当前不支持 autoConnect、Peripheral、经典蓝牙、PendingIntent/批量扫描、旧 startLeScan、可靠写入、PHY、配对和后台恢复。只测试一个通用模拟外设；不代表 Uwant App / 涂鸦配网、任意 Android 版本或真实无线链路已经兼容。
 
-ESP32 独立实板验证见 [固件记录](firmware/verification/2026-11-06.md)。目前尚未验证 iOS/Android → Mac RPC → ESP32 的整条硬件链路。
+ESP32 独立实板验证见 [固件记录](firmware/verification/2026-11-06.md)。真实广播已通过 ESP32 → Mac RPC → iOS App 验证；真实连接/GATT 链路仍未验证。
+
+办公室只读广播的启动方式见 [Mac 服务](mac/README.md)，匿名证据见 [扫描记录](tests/records/2026-11-06-office-scan.md)。

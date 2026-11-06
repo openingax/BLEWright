@@ -44,3 +44,9 @@ services 树包括服务 id/uuid/type，特征 id/uuid/properties/permissions，
 - RPC 版本不兼容时拒绝连接。新增硬件能力需要明确 capability/错误语义后再扩展，不能让不同端自行解释。
 - `constants.json` 不是完整 schema 或代码生成器；当前请求校验在服务端实现。未来接口扩大时再增加 schema 和生成代码。
 - ESP32 USB 协议独立定义在 [firmware/USB_PROTOCOL.md](../firmware/USB_PROTOCOL.md)，与本 RPC 不同；Mac 硬件适配层尚未接入，不把 TCP 帧直接发给固件。
+
+## 广播元数据扩展（v1 向后兼容）
+
+硬件后端的 device 可额外提供 identity（含地址类型的稳定会话标识）、serviceUUIDs、manufacturerData、serviceData、txPower、connectable。address 保留标准地址格式；iOS 用 identity 构建不透明 peripheral 标识，旧 mock 没有此字段时继续使用 address。
+
+这些字段是广播解析结果，不表示已连接或已发现 GATT。只读后端对任何连接/GATT请求返回 SCAN_ONLY，即使客户端绕过了按钮禁用也不会到达 USB。

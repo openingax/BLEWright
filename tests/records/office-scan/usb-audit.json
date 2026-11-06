@@ -1,0 +1,17 @@
+{
+  "time": "2026-11-06T06:14:05.888Z",
+  "event": "usbCommands",
+  "counts": {
+    "hello": 2,
+    "ping": 73,
+    "scan.start": 4,
+    "scan.stop": 3
+  },
+  "initialGeneration": 0,
+  "connectedAtStart": false,
+  "finalGeneration": 0,
+  "connectedAtEnd": false,
+  "connectingAtEnd": false,
+  "scanningAtEnd": false,
+  "droppedFrames": 0
+}

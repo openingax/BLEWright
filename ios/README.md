@@ -61,7 +61,7 @@ npm run verify:ios -- --simulator <已启动的模拟器UDID>
 限制：
 
 - 代理对象依赖 CoreBluetooth 的运行时实现。iOS 27.1 的 CBPeripheral 析构会移除 delegate 自观察；代理构造时建立对应观察以匹配释放，已通过两轮对象释放验证，不能外推到其他系统。
-- 首版广告服务过滤只解析 16 位 Service UUID 列表；并非完整广播字段解析器。每次扫描由当前 mock 后端发送一次广播。
+- 旧 mock 的原始广播回退解析为 16 位 UUID；硬件后端归一化的 16/32/128 位 UUID、厂商数据、Service Data 和 TX power 会映射到标准 CoreBluetooth 广播字段。mock 每次扫描发送一次广播，真实只读后端随被动扫描报告更新。
 - 不支持 Peripheral、L2CAP、included services、后台恢复、连接事件注册、复杂连接选项与完整 KVO 状态观察。真实设备权限行为不模拟；启用后的 CBManager.authorization 是虚拟 allowedAlways，用于接入 App 权限门控。
 - 当前后端默认 MTU=23，报告最大写入长度 20；没有长写或 MTU 自动协商。无响应写入错误只有诊断日志，没有伪造 didWrite 回调。
 - 每个 central 拥有一个独立 RPC 会话；没有承诺跨 central 的全局 peripheral 身份与共享连接语义。

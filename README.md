@@ -1,6 +1,6 @@
 # BLEWright
 
-在模拟器里保留 App 的原生 BLE 调用，通过 Mac 服务使用统一的 BLE 后端。当前已实现 Android / iOS 接管与 Mac 模拟后端；ESP32-S3 固件原型已独立通过实板验证，已接入 Mac 的只读被动扫描后端；连接/GATT 硬件后端仍未实现。
+在模拟器里保留 App 的原生 BLE 调用，通过 Mac 服务使用统一的 BLE 后端。已实现 Android / iOS 接管、mock 和 ESP32-S3 通用硬件后端。0.4 起默认硬件模式对客户端选择的任意有效 BLE 设备提供固件已支持的 Central / GATT 能力，不要求 C6 身份白名单。
 
 ## 仓库布局与职责
 
@@ -36,12 +36,12 @@ Android App / SDK 的原生 BLE API
     → android/launcher（只转发，无 BLE 业务状态）
     → protocol v1 / 本机 TCP
     → mac/service（会话、请求调度、事件）
-    → mac/backends/mock（模拟设备、GATT 值、连接和订阅）
+    → BLE 后端（mock 或 ESP32-S3 通用扫描、连接、GATT 与通知）
 ```
 
 iOS 原生 CoreBluetooth 调用通过 SimulatorBLE 直接连接同一 TCP 服务，不依赖 Frida。
 
-Android 当前通过 Frida 和启动器转发，不是 App 自己建立 TCP 连接，也不需要新增网络权限。Mac 服务是命令行服务，尚无图形界面。
+Android 当前通过 Frida 和启动器转发，不是 App 自己建立 TCP 连接，也不需要新增网络权限。Mac 服务同时提供命令行和原生桌面工作站。
 
 职责边界：
 
@@ -59,7 +59,7 @@ Android 当前通过 Frida 和启动器转发，不是 App 自己建立 TCP 连�
 
 1. 继续巩固当前 RPC 与 Android 支持范围，先根据实际 SDK 调用补齐接口。
 2. 公共 RPCConnection 与会话后端已分离，mock 和 ESP32 只扫描后端共用传输与校验。
-3. `firmware/` 已实现 S3 的 BLE Central / GATT Client 与 USB 协议并独立实测；当前 Mac 已接入只读扫描；下一步在受控外设上补齐连接/GATT，保留现有 RPC 及平台回调。
+3. ESP32 通用与受控后端共享连接/GATT 实现，目标策略独立；后续按硬件和固件能力扩展，不把测试设备范围当作正式服务范围。
 4. iOS 兼容层已通过独立模拟器探针；继续验证实际可在 Simulator 加载的设备 SDK，不能用 Hook 解决缺失的模拟器二进制。
 5. Mac GUI 只作为服务的控制与观察界面，不另写一套 BLE 逻辑。
 
@@ -114,12 +114,27 @@ iOS 的集成方式、实验性运行时限制见 [iOS 说明](ios/README.md)。
 
 ## 验证与限制
 
-已有 Android 15 / API 35、arm64 的实际运行证据：扫描、连接、服务发现、新旧读写与通知回调、指定 Handler、取消，以及 RPC 服务终止/超时/缺失场景。12 项状态与 TCP 测试已通过。测试入口和证据见 [tests](tests/README.md)。
+已有 Android 15 / API 35、arm64 的实际运行证据：扫描、连接、服务发现、新旧读写与通知回调、指定 Handler、取消，以及 RPC 服务终止/超时/缺失场景。相关状态与 TCP 测试已通过。测试入口和证据见 [tests](tests/README.md)。
 
 iOS 27.1 模拟器上的 CoreBluetooth 正常/故障流程也已实测通过，见 [iOS 实测](tests/records/2026-11-06-ios.md)。
 
-Android 当前不支持 autoConnect、Peripheral、经典蓝牙、PendingIntent/批量扫描、旧 startLeScan、可靠写入、PHY、配对和后台恢复。只测试一个通用模拟外设；不代表 Uwant App / 涂鸦配网、任意 Android 版本或真实无线链路已经兼容。
+Android 当前不支持 autoConnect、Peripheral、经典蓝牙、PendingIntent/批量扫描、旧 startLeScan、可靠写入、PHY、配对和后台恢复。已验证通用模拟外设和指定 C6 的真实无线链路；不代表 Uwant App / 涂鸦配网或任意 Android 版本已经兼容。
 
-ESP32 独立实板验证见 [固件记录](firmware/verification/2026-11-06.md)。真实广播已通过 ESP32 → Mac RPC → iOS App 验证；真实连接/GATT 链路仍未验证。
+ESP32 独立实板验证见 [固件记录](firmware/verification/2026-11-06.md)。真实广播已通过 ESP32 → Mac RPC → iOS App 验证；真实连接/GATT 已通过指定 C6 验证，见 [Android 硬件记录](tests/records/2026-11-06-android-hardware.md)。
 
 办公室只读广播的启动方式见 [Mac 服务](mac/README.md)，匿名证据见 [扫描记录](tests/records/2026-11-06-office-scan.md)。
+
+## macOS 桌面与状态栏
+
+BLEWright 0.4 提供原生桌面界面、状态栏、系统后台服务及全用户 pkg 安装包。支持按 USB 序列号绑定 S3、状态监测、内置固件刷写、重启和日志，保持公共 RPC v1，新增版本/能力查询。见 [桌面工作站说明](mac/desktop/README.md)。
+
+## 通用硬件服务
+
+桌面端选择「通用 BLE」，客户端连接 `127.0.0.1:8876`。服务不限制设备名称、厂商、服务 UUID 或 C6 nonce；客户端决定目标和业务协议。只读扫描和受控 C6 是可选模式。实际能力与限制由 `server.info` 返回；完整用法见 [Mac 服务](mac/README.md)。
+
+
+## 独立 Android BLEExplorer
+
+`android/explorer/` 提供独立的原生 BLE 工具：扫描、名称/RSSI 筛选、服务浏览、读写、通知和日志，不包含 RPC 或模拟设备数据。最低 API 35；已完成 Xiaomi 15 / API 36 原生 BLE 与 API 35 模拟器经 S3 的同包对比。
+
+真机可以直接打开 App；模拟器需通过 `explorer:mock` 或 `explorer:workstation` 启动并保持接管会话。单独点击模拟器里的 App 图标不会自动接入真实硬件。安装、运行和测试步骤见 [Android BLEExplorer](android/explorer/README.md)，结果见 [双端对比](tests/records/2026-11-06-xiaomi15-comparison.md)和[同时扫描](tests/records/2026-11-06-concurrent-scan.md)。

@@ -41,3 +41,30 @@ npm run verify:android -- --serial emulator-5554
 `npm run build:ios -- --simulator <UDID>` 构建到 `dist/ios/`；`npm run verify:ios -- --simulator <UDID>` 在已启动的模拟器执行，默认证据目录为 `dist/tests/ios-results/`。两种 delegate 队列的正常链路与服务终止、暂停超时、服务缺失分别验证，并断言服务端收到真实请求和产生通知。
 
 固件独立帧测试和真实射频验证保留在 [firmware/tests 与固件说明](../firmware/README.md)，其证据不等价于公共 RPC 硬件链路已验证。
+
+## 通用硬件服务回归
+
+0.4 的 esp32 后端不限制目标；自动测试仍在测试客户端限制为 USB 核实的 C6。
+
+```sh
+.venv/bin/python tests/e2e/verify_c6_rpc.py --general --port 8876 --identity /绝对路径/identity.json --output dist/general-rpc.json
+npm run verify:android:hardware -- --serial emulator-5554 --target-identity /绝对路径/identity.json
+```
+
+身份须由当前连接的 C6 新读取，包含地址、类型和启动 nonce。上述工具不会配置通用服务白名单。已有 iOS UI 按名称选择目标时可使用 fixture_rpc_proxy.py 作为仅测试的目标过滤代理；正式客户端直接连接 BLEWright，不使用代理。
+
+[0.4 通用服务行为矩阵与实测](records/2026-11-06-general-ble.md)记录单元测试、两端模拟器回归、真实 RPC、Android 原生 API 和 BLEExplorer UI 证据以及未覆盖项。
+
+
+## 独立 Android App 与双端对比
+
+- `npm run test:explorer:filters`：名称、RSSI 边界与组合筛选的 JVM 测试。
+- `npm run verify:explorer -- --serial <模拟器序列号>`：mock 主 UI 流程。
+- `npm run verify:explorer:edges -- --serial <模拟器序列号>`：失败重试、取消、重复操作与超时。
+- `npm run verify:explorer:filters -- --serial <模拟器序列号>`：多广播、空扫描响应、筛选设置及持久化。
+- `npm run build:ui-tools`：构建标准 UI 自动化文本工具；不安装额外 APK、不替换 BLE API。
+- `npm run verify:explorer:hardware -- --serial <序列号> --c6-port <C6串口>`：工作站实板 UI 验证。增加 `--native` 时直接在真机运行同一场景，使用 `--output` 保存独立证据。
+
+UI 用例顺序运行，避免争用前台或 C6 单连接。实板用例仅对经过 USB 身份与广播 nonce 双重核实的 C6 读写测试特征值，并恢复原值；不会连接其它附近设备。完整准备步骤见 [工具说明](../android/explorer/README.md)。
+
+验收记录：[筛选与界面](records/2026-11-06-android-explorer-filters-ui.md)、[真机同包对比](records/2026-11-06-xiaomi15-comparison.md)、[双端同时扫描](records/2026-11-06-concurrent-scan.md)。回归结束会关闭自己启动的接管会话；需要继续手工测试模拟器时，重新运行工作站启动入口并保持运行。

@@ -21,7 +21,20 @@ public final class NativeProbe {
     private static final UUID SERVICE = UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb");
     private static final UUID CHAR = UUID.fromString("0000fff1-0000-1000-8000-00805f9b34fb");
     private static final UUID CCCD = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
-    private static final byte[] VALUE = new byte[]{1, 2, 3, 4};
+    private byte[] VALUE = new byte[]{1, 2, 3, 4};
+    private boolean hardware;
+    private static String targetAddress;
+    private static byte[] targetNonce;
+    public static void configureTarget(String address, String nonce) {
+        targetAddress = address;
+        targetNonce = new byte[4];
+        for (int i=0; i<4; i++) targetNonce[i]=(byte)Integer.parseInt(nonce.substring(i*2,i*2+2),16);
+    }
+    private ScanFilter targetFilter() {
+        ScanFilter.Builder b = new ScanFilter.Builder().setServiceUuid(new ParcelUuid(SERVICE));
+        if (hardware && targetAddress != null) b.setDeviceAddress(targetAddress).setManufacturerData(65535,targetNonce);
+        return b.build();
+    }
     public static volatile String result = "NOT_STARTED";
     private static NativeProbe active;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -34,11 +47,30 @@ public final class NativeProbe {
     private BluetoothGattCharacteristic characteristic;
     private boolean modern, readDone, notified, finished, disconnecting;
     private int stage;
+    private int companionResults;
+    private final ScanCallback companion = new ScanCallback() {
+        @Override public void onScanResult(int type, ScanResult value) {
+            companionResults++;
+            scanner.stopScan(this);
+        }
+        @Override public void onScanFailed(int error) { finish("FAIL: shared scan " + error); }
+    };
+    private final ScanCallback unmatched = new ScanCallback() {
+        @Override public void onScanResult(int type, ScanResult value) { finish("FAIL: unmatched shared scan"); }
+        @Override public void onScanFailed(int error) { finish("FAIL: unmatched shared scan error " + error); }
+    };
 
     public static void start(Context context) {
+        start(context, false);
+    }
+    public static void startHardware(Context context) {
+        start(context, true);
+    }
+    private static void start(Context context, boolean hardware) {
         if (active != null && !active.finished) throw new IllegalStateException("Probe already running");
         active = new NativeProbe();
         active.context = context;
+        active.hardware = hardware;
         result = "RUNNING";
         active.handler.post(() -> active.guard(() -> active.begin()));
     }
@@ -52,7 +84,7 @@ public final class NativeProbe {
     private void finish(String value) {
         if (finished) return;
         finished = true; result = value; Log.i(TAG, value);
-        if (scanner != null) scanner.stopScan(scan);
+        if (scanner != null) { scanner.stopScan(scan); scanner.stopScan(companion); scanner.stopScan(unmatched); }
         if (gatt != null) gatt.close();
         if (callbackThread != null) callbackThread.quitSafely();
     }
@@ -63,7 +95,7 @@ public final class NativeProbe {
         check(manager != null && manager.getAdapter() != null, "No adapter");
         scanner = manager.getAdapter().getBluetoothLeScanner();
         check(scanner != null, "No scanner");
-        handler.postDelayed(() -> { if (!finished) finish("FAIL: timed out at stage " + stage + ", modern=" + modern); }, 12000);
+        handler.postDelayed(() -> { if (!finished) finish("FAIL: timed out at stage " + stage + ", modern=" + modern); }, hardware ? 55000 : 12000);
         // A stopped scan and an unmatched filter must produce no result.
         ScanCallback forbidden = new ScanCallback() {
             @Override public void onScanResult(int type, ScanResult value) { finish("FAIL: stopped/unmatched scan delivered result"); }
@@ -82,14 +114,20 @@ public final class NativeProbe {
     }
     private void startRound() {
         stage=0; readDone=false; notified=false; disconnecting=false;
-        scanner.startScan(Collections.singletonList(new ScanFilter.Builder().setServiceUuid(new ParcelUuid(SERVICE)).build()), new ScanSettings.Builder().build(), scan);
+        if (hardware) VALUE = new byte[]{16, 32, (byte)(System.nanoTime() & 255), (byte)(modern ? 2 : 1)};
+        companionResults=0;
+        scanner.startScan(Collections.singletonList(new ScanFilter.Builder().setDeviceName("does-not-exist").build()), new ScanSettings.Builder().build(), unmatched);
+        scanner.startScan(Collections.singletonList(targetFilter()), new ScanSettings.Builder().build(), companion);
+        scanner.startScan(Collections.singletonList(targetFilter()), new ScanSettings.Builder().build(), scan);
     }
     private final ScanCallback scan = new ScanCallback() {
         @Override public void onScanFailed(int error) { finish("FAIL: scan error " + error); }
         @Override public void onScanResult(int type, ScanResult value) { guard(() -> {
             check(stage==0, "duplicate scan"); stage=1;
-            check(value.getScanRecord()!=null && "BLEWright".equals(value.getScanRecord().getDeviceName()), "bad scan record");
+            check(companionResults==1, "concurrent scan did not receive result");
+            check(value.getScanRecord()!=null && (hardware ? "BLEWright-C6" : "BLEWright").equals(value.getScanRecord().getDeviceName()), "bad scan record");
             scanner.stopScan(this);
+            scanner.stopScan(unmatched);
             if (modern) gatt=value.getDevice().connectGatt(context,false,callback,BluetoothDevice.TRANSPORT_LE,BluetoothDevice.PHY_LE_1M_MASK,callbackHandler);
             else gatt=value.getDevice().connectGatt(context,false,callback);
             check(gatt!=null, "null GATT");
@@ -147,8 +185,8 @@ public final class NativeProbe {
         @Override public void onServicesDiscovered(BluetoothGatt g,int status) { guard(() -> {
             check(stage==2 && status==0, "discovery failure"); stage=3;
             BluetoothGattService service=g.getService(SERVICE);
-            check(service!=null && g.getServices().size()==1, "missing services");
-            check(g.getService(SERVICE)==service && g.getServices().get(0)==service, "cached service handle invalidated after return");
+            check(service!=null && (hardware || g.getServices().size()==1), "missing services");
+            check(g.getService(SERVICE)==service && g.getServices().contains(service), "cached service handle invalidated after return");
             characteristic=service.getCharacteristic(CHAR);
             check(characteristic!=null && characteristic.getService()==service, "missing characteristic relationship");
             check(g.setCharacteristicNotification(characteristic,true), "local notify rejected");

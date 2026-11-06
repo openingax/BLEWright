@@ -11,6 +11,7 @@
     "serve": "node mac/service/main.js",
     "android:run": ".venv/bin/python android/launcher/run.py",
     "verify:android": ".venv/bin/python tests/e2e/verify_rpc.py",
+    "verify:android:hardware": ".venv/bin/python tests/e2e/verify_android_hardware.py",
     "build:ios": "python3 tests/ios/build_probe.py",
     "verify:ios": "python3 tests/e2e/verify_ios.py",
     "check:ios-protocol": "python3 ios/tools/generate_protocol.py --check",

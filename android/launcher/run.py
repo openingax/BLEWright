@@ -2,6 +2,7 @@
 """Connect the Mac RPC service and inject the Android BLE adapter into one API-35 process."""
 import argparse
 import json
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -16,11 +17,24 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--serial', required=True, help='adb/frida emulator ID, e.g. emulator-5554')
     parser.add_argument('--package', default='com.uwant.home')
+    parser.add_argument('--require-backend', choices=['esp32', 'esp32-controlled'], help='Require the actual injection session to use the selected hardware backend')
     parser.add_argument('--probe', action='store_true', help='Load public-API DEX probe and exit with PASS/FAIL')
     parser.add_argument('--rpc-port', type=int, default=PROTOCOL['defaultPort'], help='Mac loopback BLEWright RPC port')
     parser.add_argument('--fault-probe', action='store_true', help='Wait for service shutdown and verify native disconnect/scan failure')
+    parser.add_argument('--hardware-probe', action='store_true', help='Verify the exact allowlisted C6 through an existing BLEWright service')
+    parser.add_argument('--scan-probe', action='store_true', help='Verify read-only hardware scanning without GATT operations')
+    parser.add_argument('--target-identity', type=Path, help='Fresh C6 USB identity for hardware tests against the general service; never configures server policy')
     args = parser.parse_args()
-    args.probe = args.probe or args.fault_probe
+    if sum((args.hardware_probe, args.fault_probe, args.scan_probe)) > 1:
+        parser.error('Select only one probe scenario')
+    args.probe = args.probe or args.fault_probe or args.hardware_probe or args.scan_probe
+    target = None
+    if args.target_identity:
+        if not args.hardware_probe:
+            parser.error('--target-identity is only for --hardware-probe')
+        target = json.loads(args.target_identity.read_text())
+        if not re.fullmatch(r'(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}', str(target.get('address', ''))) or not re.fullmatch(r'[0-9A-Fa-f]{8}', str(target.get('nonce', ''))):
+            parser.error('Hardware test requires the C6 USB address and nonce')
 
     def adb(*items):
         return subprocess.check_output(['adb', '-s', args.serial, *items], text=True).strip()
@@ -43,6 +57,24 @@ def main():
     import frida
     device = frida.get_device(args.serial, timeout=5)
     relay = RpcRelay(args.rpc_port)
+    info = relay.hello
+    print(json.dumps({'event': 'blewrightService', 'port': args.rpc_port,
+                      **{key: info.get(key) for key in ('serverVersion', 'backend', 'capabilities')} }), flush=True)
+    if args.require_backend:
+        required = {'scan', 'connect', 'discover', 'read', 'write', 'notify'}
+        capabilities = info.get('capabilities', [])
+        valid_capabilities = isinstance(capabilities, list) and all(isinstance(item, str) for item in capabilities)
+        if info.get('backend') != args.require_backend or not valid_capabilities or not required.issubset(capabilities):
+            relay.close()
+            parser.error('Workstation backend changed or lacks required BLE capabilities; refusing injection')
+    controlled = info.get('backend') == 'esp32-controlled' and info.get('targetPolicy') == 'exact-allowlist'
+    general = info.get('backend') == 'esp32' and info.get('targetPolicy') == 'any-device'
+    if args.hardware_probe and not (controlled or (general and target)):
+        relay.close()
+        parser.error('Hardware probe requires BLEWright esp32-controlled with exact-allowlist, or esp32 with --target-identity')
+    if args.scan_probe and info.get('backend') != 'esp32-scan':
+        relay.close()
+        parser.error('Scan probe requires BLEWright esp32-scan')
     ready, failed = threading.Event(), threading.Event()
 
     def message(msg, data):
@@ -76,8 +108,9 @@ def main():
                 if time.monotonic() >= deadline:
                     raise RuntimeError('Application context did not become ready')
                 time.sleep(0.05)
-            print(script.exports_sync.probe(remote, "loss" if args.fault_probe else "normal"), flush=True)
-            deadline = time.monotonic() + 20
+            kind = "c6" if args.hardware_probe else "scan" if args.scan_probe else "loss" if args.fault_probe else "normal"
+            print(script.exports_sync.probe(remote, kind, target), flush=True)
+            deadline = time.monotonic() + (60 if args.hardware_probe else 20)
             checkpoint_printed = False
             while time.monotonic() < deadline and not failed.is_set():
                 result = script.exports_sync.probe_result()

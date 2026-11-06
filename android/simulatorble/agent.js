@@ -1,5 +1,6 @@
 import protocol from "../../protocol/constants.json";
 import Java from "frida-java-bridge";
+import { nativeScanRecord } from "./scan-record.js";
 // This module contains Android projections only. Device data and BLE outcomes live on Mac.
 const links = new Map(),
   remoteLinks = new Map(),
@@ -18,6 +19,36 @@ let C,
   nextScan = 0;
 let probeClass = "space.nomoloop.blewright.NativeProbe";
 let online = Boolean(globalThis.BLEWRIGHT_SESSION);
+let radioScan = null;
+let scanTransition = Promise.resolve();
+// One physical scan serves all Android callbacks. Serialize transitions so a
+// new start never overtakes the previous hardware stop.
+function reconcileScan() {
+  scanTransition = scanTransition.then(() => new Promise((resolve) => {
+    if (!online) return resolve();
+    if (scans.size && !radioScan) {
+      const id = "radio-" + ++nextScan;
+      radioScan = id;
+      requestRpc("scan.start", { scanId: id }, (result) => {
+        if (result.error) {
+          radioScan = null;
+          const affected = [...scans.values()];
+          scans.clear();
+          for (const s of affected) later(main, () => s.cb.onScanFailed(3));
+          log("scanRejected", { code: result.error.code });
+        }
+        resolve();
+      });
+    } else if (!scans.size && radioScan) {
+      const id = radioScan;
+      radioScan = null;
+      requestRpc("scan.stop", { scanId: id }, (result) => {
+        if (result.error) transportLost("scan stop failed: " + result.error.code);
+        resolve();
+      });
+    } else resolve();
+  }));
+}
 function log(event, extra = {}) {
   send({ event, ...extra });
 }
@@ -135,27 +166,28 @@ setInterval(() => {
 }, protocol.heartbeatIntervalMs);
 function remoteEvent(f) {
   if (f.event === "advertisement") {
-    const scan = [...scans.values()].find((s) => s.id === f.scanId);
-    if (!scan) return;
+    if (f.scanId !== radioScan) return;
     const d = f.device;
     devices.set(d.address, d);
-    const record = C.Record.parseFromBytes(bytes(d.advertising));
+    const record = C.Record.parseFromBytes(bytes(nativeScanRecord(d)));
     const device = C.Adapter.getDefaultAdapter().getRemoteDevice(d.address);
     const result = Java.retain(
       C.Result.$new(device, record, d.rssi, C.Clock.elapsedRealtimeNanos()),
     );
-    let matches = !scan.filters || scan.filters.isEmpty();
-    if (scan.filters)
-      for (let i = 0; i < scan.filters.size(); i++)
-        if (Java.cast(scan.filters.get(i), C.Filter).matches(result))
-          matches = true;
-    if (matches)
-      later(main, () => {
-        if (online && scans.get(scan.key) === scan) {
-          scan.cb.onScanResult(1, result);
-          log("scanResult", { address: d.address, source: "rpc" });
-        }
-      });
+    for (const scan of scans.values()) {
+      let matches = !scan.filters || scan.filters.isEmpty();
+      if (scan.filters)
+        for (let i = 0; i < scan.filters.size(); i++)
+          if (Java.cast(scan.filters.get(i), C.Filter).matches(result))
+            matches = true;
+      if (matches)
+        later(main, () => {
+          if (online && scans.get(scan.key) === scan) {
+            scan.cb.onScanResult(1, result);
+            log("scanResult", { address: d.address, source: "rpc" });
+          }
+        });
+    }
   } else if (f.event === "disconnected") {
     const s = remoteLinks.get(f.connectionId);
     if (!s || ["closed", "disconnected"].includes(s.phase)) return;
@@ -317,15 +349,7 @@ function scan(filters, settings, cb) {
     filters: filters ? Java.retain(filters) : null,
   };
   scans.set(id, scan);
-  requestRpc("scan.start", { scanId: scan.id }, (result) => {
-    if (result.error)
-      later(main, () => {
-        if (scans.get(id) === scan) {
-          scans.delete(id);
-          retained.onScanFailed(3);
-        }
-      });
-  });
+  reconcileScan();
 }
 Java.perform(() => {
   try {
@@ -442,7 +466,7 @@ Java.perform(() => {
         return unsupported("PendingIntent stop");
       const scan = scans.get(key(a[0]));
       scans.delete(key(a[0]));
-      if (scan) requestRpc("scan.stop", { scanId: scan.id });
+      if (scan) reconcileScan();
     });
     hook(C.Scanner, "flushPendingScanResults", () => unsupported("batch scan"));
     hook(C.Gatt, "discoverServices", function () {
@@ -641,18 +665,21 @@ rpc.exports = {
       }),
     );
   },
-  probe(path, kind) {
+  probe(path, kind, target) {
     return new Promise((resolve, reject) =>
       Java.perform(() => {
         try {
           Java.openClassFile(path).load();
           probeClass =
-            kind === "loss"
+            kind === "scan" ? "space.nomoloop.blewright.ScanOnlyProbe" : kind === "loss"
               ? "space.nomoloop.blewright.ServiceLossProbe"
               : "space.nomoloop.blewright.NativeProbe";
-          Java.use(probeClass).start(
-            Java.use("android.app.ActivityThread").currentApplication(),
-          );
+          const app = Java.use("android.app.ActivityThread").currentApplication();
+          if (kind === "c6") {
+            if (target) Java.use(probeClass).configureTarget(target.address.toUpperCase(), target.nonce);
+            Java.use(probeClass).startHardware(app);
+          }
+          else Java.use(probeClass).start(app);
           resolve("started; inspect BLEWrightProbe logcat for PASS/FAIL");
         } catch (e) {
           reject(String(e));

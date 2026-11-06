@@ -1,0 +1,6 @@
+2026-11-06 11:35:47.160 BLEWrightIOSProbe[72644:7597927] SimulatorBLE installed — Simulator Debug only, RPC backend
+2026-11-06 11:35:51.474 BLEWrightIOSProbe[72644:7597927] BLEWrightProbe: PASS: CoreBluetooth reports poweredOff when RPC is unavailable
+2026-11-06 11:37:15.404 BLEWrightIOSProbe[76821:7609089] SimulatorBLE installed — Simulator Debug only, RPC backend
+2026-11-06 11:37:19.715 BLEWrightIOSProbe[76821:7609089] BLEWrightProbe: PASS: CoreBluetooth reports poweredOff when RPC is unavailable
+2026-11-06 11:42:39.696 BLEWrightIOSProbe[90643:7645406] SimulatorBLE installed — Simulator Debug only, RPC backend
+2026-11-06 11:42:44.019 BLEWrightIOSProbe[90643:7645406] BLEWrightProbe: PASS: CoreBluetooth reports poweredOff when RPC is unavailable

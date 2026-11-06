@@ -10,7 +10,10 @@
     "test": "node --test tests/unit/*.test.js tests/integration/*.test.js",
     "serve": "node mac/service/main.js",
     "android:run": ".venv/bin/python android/launcher/run.py",
-    "verify:android": ".venv/bin/python tests/e2e/verify_rpc.py"
+    "verify:android": ".venv/bin/python tests/e2e/verify_rpc.py",
+    "build:ios": "python3 tests/ios/build_probe.py",
+    "verify:ios": "python3 tests/e2e/verify_ios.py",
+    "check:ios-protocol": "python3 ios/tools/generate_protocol.py --check"
   },
   "devDependencies": {
     "buffer": "6.0.3",

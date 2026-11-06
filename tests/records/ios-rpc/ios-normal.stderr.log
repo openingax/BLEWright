@@ -1,0 +1,9 @@
+2026-11-06 11:35:32.568 BLEWrightIOSProbe[71921:7595920] SimulatorBLE installed — Simulator Debug only, RPC backend
+2026-11-06 11:35:33.298 BLEWrightIOSProbe[71921:7595920] BLEWrightProbe: ROUND_PASS main queue
+2026-11-06 11:35:34.126 BLEWrightIOSProbe[71921:7595986] BLEWrightProbe: PASS: CoreBluetooth scan/filter/stop, connect/cancel, service graph, write/read/oversize, notify/unsubscribe, withoutResponse, main/custom delegate queues
+2026-11-06 11:37:00.689 BLEWrightIOSProbe[76085:7607077] SimulatorBLE installed — Simulator Debug only, RPC backend
+2026-11-06 11:37:01.426 BLEWrightIOSProbe[76085:7607077] BLEWrightProbe: ROUND_PASS main queue
+2026-11-06 11:37:02.262 BLEWrightIOSProbe[76085:7607166] BLEWrightProbe: PASS: CoreBluetooth scan/filter/stop, connect/cancel, service graph, write/read/oversize, notify/unsubscribe, withoutResponse, main/custom delegate queues
+2026-11-06 11:42:24.668 BLEWrightIOSProbe[89868:7641655] SimulatorBLE installed — Simulator Debug only, RPC backend
+2026-11-06 11:42:25.413 BLEWrightIOSProbe[89868:7641655] BLEWrightProbe: ROUND_PASS main queue
+2026-11-06 11:42:26.238 BLEWrightIOSProbe[89868:7641763] BLEWrightProbe: PASS: CoreBluetooth scan/filter/stop, connect/cancel, service graph, write/read/oversize, notify/unsubscribe, withoutResponse, main/custom delegate queues

@@ -1,0 +1,1 @@
+PASS: CoreBluetooth scan/filter/stop, connect/cancel, service graph, write/read/oversize, notify/unsubscribe, withoutResponse, main/custom delegate queues

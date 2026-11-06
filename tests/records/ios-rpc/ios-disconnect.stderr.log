@@ -1,0 +1,9 @@
+2026-11-06 11:35:35.272 BLEWrightIOSProbe[72050:7596352] SimulatorBLE installed — Simulator Debug only, RPC backend
+2026-11-06 11:35:35.651 BLEWrightIOSProbe[72050:7596352] BLEWrightProbe: CONNECTED_WAITING_FOR_SERVICE_LOSS
+2026-11-06 11:35:35.660 BLEWrightIOSProbe[72050:7596352] BLEWrightProbe: PASS: RPC loss disconnects peripheral, stops scanning and marks central poweredOff
+2026-11-06 11:37:03.442 BLEWrightIOSProbe[76275:7607649] SimulatorBLE installed — Simulator Debug only, RPC backend
+2026-11-06 11:37:03.819 BLEWrightIOSProbe[76275:7607649] BLEWrightProbe: CONNECTED_WAITING_FOR_SERVICE_LOSS
+2026-11-06 11:37:03.837 BLEWrightIOSProbe[76275:7607649] BLEWrightProbe: PASS: RPC loss disconnects peripheral, stops scanning and marks central poweredOff
+2026-11-06 11:42:27.475 BLEWrightIOSProbe[90033:7642388] SimulatorBLE installed — Simulator Debug only, RPC backend
+2026-11-06 11:42:27.897 BLEWrightIOSProbe[90033:7642388] BLEWrightProbe: CONNECTED_WAITING_FOR_SERVICE_LOSS
+2026-11-06 11:42:27.928 BLEWrightIOSProbe[90033:7642388] BLEWrightProbe: PASS: RPC loss disconnects peripheral, stops scanning and marks central poweredOff

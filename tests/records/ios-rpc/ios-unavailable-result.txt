@@ -1,0 +1,1 @@
+PASS: CoreBluetooth reports poweredOff when RPC is unavailable
